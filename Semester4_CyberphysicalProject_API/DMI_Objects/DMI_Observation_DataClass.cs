@@ -13,14 +13,17 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
         /// The unique station identifier as defined by DMI, e.g. "31616".
         /// </summary>
         private string station_ID;
+
         /// <summary>
         /// The human-readable name of the station, e.g. "Kerteminde".
         /// </summary>
         private string station_Name;
+
         /// <summary>
         /// The observed sea water temperature in degrees Celsius.
         /// </summary>
         private double value;
+
         /// <summary>
         /// The exact date and time the observation was recorded by DMI.
         /// This is NOT the time we fetched the data — it is when the measurement was actually taken.

@@ -8,7 +8,7 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
     /// the full weight of all its observations around with it.
     /// 
     /// Station identity (ID and name) comes from the setup process (Request Type 1).
-    /// Coordinates (Latitude and Longitude) come from observations (Request Type 2),
+    /// Coordinates (Latitude and longtitude) come from observations (Request Type 2),
     /// and can therefore be updated after construction.
     /// </summary>
     public class DMI_Station_DataClass
@@ -30,10 +30,17 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
         private double? latitude;
 
         /// <summary>
-        /// The longitude coordinate of the station.
+        /// The longtitude coordinate of the station.
         /// Null if coordinates have not been received from observations yet.
         /// </summary>
-        private double? longitude;
+        private double? longtitude;
+
+
+
+
+
+
+
 
 
         /////////////////////////////////////////////////////////////////////////////////
@@ -52,9 +59,9 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
         public DMI_Station_DataClass(string stationId, string stationName)
         {
             this.station_ID = stationId;
-            this.station_Name = stationName;
+            this.station_Name = Sanitise_StationName(stationName);
             this.latitude = null;
-            this.longitude = null;
+            this.longtitude = null;
         }
 
         /// <summary>
@@ -65,14 +72,23 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
         /// <param name="stationId">The unique DMI station identifier.</param>
         /// <param name="stationName">The human-readable station name.</param>
         /// <param name="latitude">The latitude coordinate of the station.</param>
-        /// <param name="longitude">The longitude coordinate of the station.</param>
-        public DMI_Station_DataClass(string stationId, string stationName, double latitude, double longitude)
+        /// <param name="longtitude">The longtitude coordinate of the station.</param>
+        public DMI_Station_DataClass(string stationId, string stationName, double latitude, double longtitude)
         {
             this.station_ID = stationId;
-            this.station_Name = stationName;
+            this.station_Name = Sanitise_StationName(stationName);
             this.latitude = latitude;
-            this.longitude = longitude;
+            this.longtitude = longtitude;
         }
+
+
+
+
+
+
+
+
+
 
 
         ////////////////////////////////////////////////////////////////////////////////////
@@ -80,37 +96,63 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
         ////////////////////////////////////////////////////////////////////////////////////
 
 
+
         /// <summary>
-        /// Validates that the provided latitude and longitude are within
+        /// Sanitises the station name by removing or replacing characters
+        /// that could cause problems when the name is used in a JSON string.
+        /// Called automatically in the constructor when the name is assigned.
+        /// </summary>
+        /// <param name="name">The raw station name to sanitise.</param>
+        /// <returns>The sanitised station name as a string.</returns>
+        private string Sanitise_StationName(string name)
+        {
+            // Remove double quotes to prevent breaking JSON strings.
+            name = name.Replace("\"", "");
+
+            // Remove backslashes to prevent escape sequence issues in JSON strings.
+            name = name.Replace("\\", "");
+
+            // Remove newlines and carriage returns to keep the name on one line.
+            name = name.Replace("\n", "");
+            name = name.Replace("\r", "");
+
+            return name;
+        }
+
+
+
+        /// <summary>
+        /// Validates that the provided latitude and longtitude are within
         /// the valid geographic ranges before they are assigned.
         /// Latitude must be between -90 and 90.
-        /// Longitude must be between -180 and 180.
+        /// longtitude must be between -180 and 180.
         /// </summary>
         /// <param name="latitude">The latitude value to validate.</param>
-        /// <param name="longitude">The longitude value to validate.</param>
+        /// <param name="longtitude">The longtitude value to validate.</param>
         /// <returns>True if both values are valid, false otherwise.</returns>
-        private bool Validate_Coordinates(double latitude, double longitude)
+        private bool Validate_Coordinates(double latitude, double longtitude)
         {
             // Validate that latitude is within the valid geographic range.
             if (latitude < -90 || latitude > 90)
             {
-                Console.WriteLine($"[ERROR] DMI_Station_DataClass: " +
-                    $"Invalid latitude value '{latitude}' for station '{station_ID}'. " +
-                    $"Latitude must be between -90 and 90.");
+                Console.WriteLine($"[ERROR] DMI_Station_DataClass: " + $"Invalid latitude value '{latitude}' for station '{station_ID}'. " + $"Latitude must be between -90 and 90.");
                 return false;
             }
 
-            // Validate that longitude is within the valid geographic range.
-            if (longitude < -180 || longitude > 180)
+            // Validate that longtitude is within the valid geographic range.
+            if (longtitude < -180 || longtitude > 180)
             {
-                Console.WriteLine($"[ERROR] DMI_Station_DataClass: " +
-                    $"Invalid longitude value '{longitude}' for station '{station_ID}'. " +
-                    $"Longitude must be between -180 and 180.");
+                Console.WriteLine($"[ERROR] DMI_Station_DataClass: " + $"Invalid longtitude value '{longtitude}' for station '{station_ID}'. " + $"longtitude must be between -180 and 180.");
                 return false;
             }
 
             return true;
         }
+
+
+
+
+
 
 
         ///////////////////////////////////////////////////////////////////////////////////
@@ -148,14 +190,14 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
         }
 
         /// <summary>
-        /// Returns the longitude coordinate of this station.
+        /// Returns the longtitude coordinate of this station.
         /// Returns null if coordinates have not been set yet.
         /// Use Has_Coordinates() to check before calling this.
         /// </summary>
-        /// <returns>The longitude as a nullable double.</returns>
-        public double? Get_Longitude()
+        /// <returns>The longtitude as a nullable double.</returns>
+        public double? Get_Longtitude()
         {
-            return this.longitude;
+            return this.longtitude;
         }
 
         /// <summary>
@@ -163,30 +205,30 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
         /// Coordinates are only available after Update_Coordinates() has been called,
         /// or if the full constructor was used.
         /// </summary>
-        /// <returns>True if both latitude and longitude are set, false otherwise.</returns>
+        /// <returns>True if both latitude and longtitude are set, false otherwise.</returns>
         public bool Has_Coordinates()
         {
-            if(this.latitude == null || this.longitude == null)
+            if(this.latitude == null || this.longtitude == null)
             {
                 return false;
             }
 
-            return this.latitude.HasValue && this.longitude.HasValue;
+            return this.latitude.HasValue && this.longtitude.HasValue;
         }
 
         /// <summary>
-        /// Updates the latitude and longitude of this station.
+        /// Updates the latitude and longtitude of this station.
         /// Called when observation data (Request Type 2) becomes available
         /// after the station was initially created during the setup process.
         /// Validates the coordinates before assigning them.
         /// </summary>
         /// <param name="latitude">The new latitude coordinate of the station.</param>
-        /// <param name="longitude">The new longitude coordinate of the station.</param>
+        /// <param name="longtitude">The new longtitude coordinate of the station.</param>
         /// <returns>True if the coordinates were valid and updated, false otherwise.</returns>
-        public bool Update_Coordinates(double latitude, double longitude)
+        public bool Update_Coordinates(double latitude, double longtitude)
         {
             // Validate the coordinates before assigning them.
-            bool isValid = Validate_Coordinates(latitude, longitude);
+            bool isValid = Validate_Coordinates(latitude, longtitude);
             if (!isValid)
             {
                 // Validation failed — coordinates remain unchanged.
@@ -198,7 +240,7 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
 
             // Coordinates are valid — update them.
             this.latitude = latitude;
-            this.longitude = longitude;
+            this.longtitude = longtitude;
             return true;
         }
     }
