@@ -5,20 +5,38 @@
     /// This is the interface the Background Service uses — it only exposes
     /// fetch and store focused methods.
     ///
-    /// The Background Service never talks to IDmiOceanService or
-    /// IStationConfigService directly — it only ever sees this interface.
+    /// The Background Service never talks to IDMI_Ocean_Service or
+    /// IStationConfig_Service directly — it only ever sees this interface.
     /// </summary>
     public interface IWeatherFetch_Facade
     {
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                             Fetch Methods                                   ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
         /// <summary>
         /// Runs the full fetch cycle:
         /// - Reads the current station list
         /// - Fetches the latest observations from DMI for each station
         /// - Saves any new readings to the SQL database
         /// - Trims old readings from the SQL database if the limit is exceeded
-        /// Called by the Background Service on every fetch interval.
+        /// Called by DmiFetch_BackgroundService on every fetch interval.
         /// </summary>
         Task FetchAndSaveLatestAsync();
+
+
+
+
+
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                            Station Methods                                  ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
 
         /// <summary>
         /// Checks whether the local station list file exists.
@@ -26,6 +44,7 @@
         /// </summary>
         /// <returns>True if the station list file exists, false otherwise.</returns>
         bool StationsReady();
+
 
         /// <summary>
         /// Runs the station discovery process:
@@ -36,10 +55,29 @@
         /// </summary>
         Task InitialiseStationsAsync();
 
+
+
+
+
+
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                             Reset Methods                                   ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
         /// <summary>
         /// Wipes all stored data and triggers a fresh station discovery.
         /// Called when the user requests a full reset from the UI or app settings.
         /// </summary>
         Task ResetAndRediscoverAsync();
+
+
+
+
+
+
     }
 }

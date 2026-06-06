@@ -1,7 +1,5 @@
 ﻿using System.Linq;
 
-
-
 namespace Semester4_CyberphysicalProject_API.DMI_Objects
 {
     /// <summary>
@@ -11,6 +9,8 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
     /// </summary>
     public class DMI_StationsResponse_DataClass
     {
+
+
         /// <summary>
         /// The list of station IDs included in this response.
         /// Used for quick lookups and validation.
@@ -27,11 +27,16 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
 
 
 
+
+
+
+
+
+
+
         /////////////////////////////////////////////////////////////////////////////////
         ///                             Constructors                                  ///
         /////////////////////////////////////////////////////////////////////////////////
-        ///
-
 
 
         /// <summary>
@@ -53,21 +58,17 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
             if (!isValid)
             {
                 // Print the problem to the console for debugging purposes.
-                Console.WriteLine($"[ERROR] DMI_StationsResponse_DataClass: " +
-                    $"Station ID validation failed critically for the provided array. " +
-                    $"The data structure is inconsistent and cannot be trusted.");
+                Console.WriteLine($"[ERROR] DMI_StationsResponse_DataClass: Station ID validation failed critically for the provided array. The data structure is inconsistent and cannot be trusted.");
 
                 // Throw an exception to force the caller to fix the problem.
                 // The program should never be allowed to continue with inconsistent data.
-                throw new InvalidOperationException(
-                    $"Cannot create DMI_StationsResponse_DataClass: " +
-                    $"Station ID validation failed critically for the provided array. " +
-                    $"The data structure must be consistent.");
+                throw new InvalidOperationException($"Cannot create DMI_StationsResponse_DataClass: Station ID validation failed critically for the provided array. The data structure must be consistent.");
             }
 
-            // Populate the dictionary from the array.
+            // All IDs are valid — populate the dictionary from the array.
             Assign_StationsObservations(StationsObservations_Array);
         }
+
 
 
 
@@ -86,23 +87,18 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
             // Validate IDs and update Stations_IDs if any are missing.
             bool isValid = Assign_StationIDsList_Match_List(StationsIDs_List, StationsObservations_List);
 
-            // Prints to console and throws an exception if validation fails critically. 
+            // Prints to console and throws an exception if validation fails critically.
             if (!isValid)
             {
                 // Print the problem to the console for debugging purposes.
-                Console.WriteLine($"[ERROR] DMI_StationsResponse_DataClass: " +
-                    $"Station ID validation failed critically for the provided list. " +
-                    $"The data structure is inconsistent and cannot be trusted.");
+                Console.WriteLine($"[ERROR] DMI_StationsResponse_DataClass: Station ID validation failed critically for the provided list. The data structure is inconsistent and cannot be trusted.");
 
                 // Throw an exception to force the caller to fix the problem.
                 // The program should never be allowed to continue with inconsistent data.
-                throw new InvalidOperationException(
-                    $"Cannot create DMI_StationsResponse_DataClass: " +
-                    $"Station ID validation failed critically for the provided list. " +
-                    $"The data structure must be consistent.");
+                throw new InvalidOperationException($"Cannot create DMI_StationsResponse_DataClass: Station ID validation failed critically for the provided list. The data structure must be consistent.");
             }
 
-            // Populate the dictionary from the list.
+            // All IDs are valid — populate the dictionary from the list.
             Assign_StationsObservations(StationsObservations_List);
         }
 
@@ -111,10 +107,152 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
 
 
 
+
+
+
+
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                          Public Getter Methods                             ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
+        /// <summary>
+        /// Returns the list of all station IDs included in this response.
+        /// </summary>
+        /// <returns>A list of station ID strings.</returns>
+        public List<string> Get_All_StationIDs()
+        {
+            return this.Stations_IDs;
+        }
+
+
+
+
+        /// <summary>
+        /// Returns all observations from all stations as a flat list.
+        /// Useful when you need to process every reading regardless of station.
+        /// </summary>
+        /// <returns>A flat list of all DMI_StationObservations_DataClass instances.</returns>
+        public List<DMI_StationObservations_DataClass> Get_AllObservations_fromAllStations()
+        {
+            return StationsObservations_Map.Values.ToList();
+        }
+
+
+
+
+        /// <summary>
+        /// Returns all observations from a specific station by its ID.
+        /// </summary>
+        /// <param name="station_ID">The station ID to retrieve observations for.</param>
+        /// <returns>The DMI_StationObservations_DataClass for the given station, or null if not found.</returns>
+        public DMI_StationObservations_DataClass? Get_AllObservations_fromStation(string station_ID)
+        {
+            // Return the station observations if found, or null if the station doesn't exist.
+            return StationsObservations_Map.TryGetValue(station_ID, out DMI_StationObservations_DataClass? observations) ? observations : null;
+        }
+
+
+
+
+
+
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                          Public Check Methods                              ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
+        /// <summary>
+        /// Checks whether a station with the given ID exists in this response.
+        /// </summary>
+        /// <param name="station_ID">The station ID to check for.</param>
+        /// <returns>True if the station exists, false otherwise.</returns>
+        public bool Check_Contains_Station(string station_ID)
+        {
+            return StationsObservations_Map.ContainsKey(station_ID);
+        }
+
+
+
+
+
+
+
+
+
+
+
         ////////////////////////////////////////////////////////////////////////////////////
-        ///                             Private Methods                                  ///
+        ///                       Private Assignment Methods                            ///
         ////////////////////////////////////////////////////////////////////////////////////
-        ///
+
+
+        /// <summary>
+        /// Populates the StationsObservations_Map dictionary from the provided array.
+        /// Uses each station's ID as the dictionary key for fast O(1) lookups later.
+        /// Skips any entry where the station ID is null or already exists in the map.
+        /// Called by the constructor after validation has passed successfully.
+        /// </summary>
+        /// <param name="StationsObservations_Array">The array of station observations to assign.</param>
+        /// <returns>True when the map has been successfully populated.</returns>
+        private bool Assign_StationsObservations(DMI_StationObservations_DataClass[] StationsObservations_Array)
+        {
+            foreach (DMI_StationObservations_DataClass stationObservations in StationsObservations_Array)
+            {
+                // Use the station ID as the dictionary key for fast lookups.
+                string id = stationObservations.Get_StationId();
+                if (id != null && !StationsObservations_Map.ContainsKey(id))
+                {
+                    StationsObservations_Map.Add(id, stationObservations);
+                }
+            }
+            return true;
+        }
+
+
+
+
+        /// <summary>
+        /// Populates the StationsObservations_Map dictionary from the provided list.
+        /// Uses each station's ID as the dictionary key for fast O(1) lookups later.
+        /// Skips any entry where the station ID is null or already exists in the map.
+        /// Called by the constructor after validation has passed successfully.
+        /// </summary>
+        /// <param name="StationsObservations_List">The list of station observations to assign.</param>
+        /// <returns>True when the map has been successfully populated.</returns>
+        private bool Assign_StationsObservations(List<DMI_StationObservations_DataClass> StationsObservations_List)
+        {
+            foreach (DMI_StationObservations_DataClass stationObservations in StationsObservations_List)
+            {
+                // Use the station ID as the dictionary key for fast lookups.
+                string id = stationObservations.Get_StationId();
+                if (id != null && !StationsObservations_Map.ContainsKey(id))
+                {
+                    StationsObservations_Map.Add(id, stationObservations);
+                }
+            }
+            return true;
+        }
+
+
+
+
+
+
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////////
+        ///                       Private Validation Methods                            ////
+        ////////////////////////////////////////////////////////////////////////////////////
 
 
 
@@ -153,14 +291,9 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
                 }
                 else if (IDs_listed.Contains(stationObservations.Get_StationId()) && IDs_listed_n_used.Contains(stationObservations.Get_StationId()))
                 {
-                    // Duplicate found — print to console and throw.
-                    Console.WriteLine($"[ERROR] Assign_StationIDsList_Match_Array: " +
-                        $"Duplicate station ID '{stationObservations.Get_StationId()}' " +
-                        $"found in StationsObservations_Array. Each station must appear exactly once.");
-
-                    throw new InvalidOperationException(
-                        $"Duplicate station ID '{stationObservations.Get_StationId()}' found in StationsObservations_Array. " +
-                        $"Each station must appear exactly once.");
+                    // This station ID appears more than once in the array — this is a critical error.
+                    Console.WriteLine($"[ERROR] Assign_StationIDsList_Match_Array: Duplicate station ID '{stationObservations.Get_StationId()}' found in StationsObservations_Array. Each station must appear exactly once.");
+                    throw new InvalidOperationException($"Duplicate station ID '{stationObservations.Get_StationId()}' found in StationsObservations_Array. Each station must appear exactly once.");
                 }
             }
 
@@ -173,11 +306,9 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
             }
             else if (IDs_listed.Count == IDs_listed_n_used.Count && additional_IDs.Count > 0)
             {
-                // Unexpected extra stations found — print warning to console.
-                Console.WriteLine($"[WARNING] Assign_StationIDsList_Match_Array: " +
-                    $"{additional_IDs.Count} unexpected station ID(s) found in StationsObservations_Array " +
-                    $"and added to Stations_IDs: {string.Join(", ", additional_IDs)}");
-
+                // All expected IDs were found, but the array also contains unexpected extra stations.
+                // Include the additional IDs in Stations_IDs so nothing is silently dropped.
+                Console.WriteLine($"[WARNING] Assign_StationIDsList_Match_Array: {additional_IDs.Count} unexpected station ID(s) found in StationsObservations_Array and added to Stations_IDs: {string.Join(", ", additional_IDs)}");
                 this.Stations_IDs = IDs_listed_n_used.Concat(additional_IDs).ToList();
                 return true;
             }
@@ -185,20 +316,16 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
             {
                 // Some expected IDs had no matching observations entry — identify and remove them.
                 List<string> missing_IDs = IDs_listed.Except(IDs_listed_n_used).ToList();
-
-                // Missing stations found — print warning to console.
-                Console.WriteLine($"[WARNING] Assign_StationIDsList_Match_Array: " +
-                    $"{missing_IDs.Count} expected station ID(s) had no matching observations entry " +
-                    $"and were removed from Stations_IDs: {string.Join(", ", missing_IDs)}");
+                Console.WriteLine($"[WARNING] Assign_StationIDsList_Match_Array: {missing_IDs.Count} expected station ID(s) had no matching observations entry and were removed from Stations_IDs: {string.Join(", ", missing_IDs)}");
 
                 // Assign Stations_IDs without the missing IDs, but include any additional ones found.
                 this.Stations_IDs = IDs_listed_n_used.Concat(additional_IDs).ToList();
-
                 return true;
             }
 
             return false;
         }
+
 
 
 
@@ -237,30 +364,24 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
                 }
                 else if (IDs_listed.Contains(stationObservations.Get_StationId()) && IDs_listed_n_used.Contains(stationObservations.Get_StationId()))
                 {
-                    // Duplicate found — print to console and throw.
-                    Console.WriteLine($"[ERROR] Assign_StationIDsList_Match_Array: " +
-                        $"Duplicate station ID '{stationObservations.Get_StationId()}' " +
-                        $"found in StationsObservations_Array. Each station must appear exactly once.");
-
-                    throw new InvalidOperationException(
-                        $"Duplicate station ID '{stationObservations.Get_StationId()}' found in StationsObservations_Array. " +
-                        $"Each station must appear exactly once.");
+                    // This station ID appears more than once in the list — this is a critical error.
+                    Console.WriteLine($"[ERROR] Assign_StationIDsList_Match_List: Duplicate station ID '{stationObservations.Get_StationId()}' found in StationsObservations_List. Each station must appear exactly once.");
+                    throw new InvalidOperationException($"Duplicate station ID '{stationObservations.Get_StationId()}' found in StationsObservations_List. Each station must appear exactly once.");
                 }
             }
 
             if (IDs_listed.Count == IDs_listed_n_used.Count && additional_IDs.Count == 0)
             {
                 // Perfect match — every expected ID has exactly one matching observations entry.
+                // Assign Stations_IDs exactly as provided.
                 this.Stations_IDs = IDs_listed;
                 return true;
             }
             else if (IDs_listed.Count == IDs_listed_n_used.Count && additional_IDs.Count > 0)
             {
-                // Unexpected extra stations found — print warning to console.
-                Console.WriteLine($"[WARNING] Assign_StationIDsList_Match_Array: " +
-                    $"{additional_IDs.Count} unexpected station ID(s) found in StationsObservations_Array " +
-                    $"and added to Stations_IDs: {string.Join(", ", additional_IDs)}");
-
+                // All expected IDs were found, but the list also contains unexpected extra stations.
+                // Include the additional IDs in Stations_IDs so nothing is silently dropped.
+                Console.WriteLine($"[WARNING] Assign_StationIDsList_Match_List: {additional_IDs.Count} unexpected station ID(s) found in StationsObservations_List and added to Stations_IDs: {string.Join(", ", additional_IDs)}");
                 this.Stations_IDs = IDs_listed_n_used.Concat(additional_IDs).ToList();
                 return true;
             }
@@ -268,11 +389,7 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
             {
                 // Some expected IDs had no matching observations entry — identify and remove them.
                 List<string> missing_IDs = IDs_listed.Except(IDs_listed_n_used).ToList();
-
-                // Missing stations found — print warning to console.
-                Console.WriteLine($"[WARNING] Assign_StationIDsList_Match_Array: " +
-                    $"{missing_IDs.Count} expected station ID(s) had no matching observations entry " +
-                    $"and were removed from Stations_IDs: {string.Join(", ", missing_IDs)}");
+                Console.WriteLine($"[WARNING] Assign_StationIDsList_Match_List: {missing_IDs.Count} expected station ID(s) had no matching observations entry and were removed from Stations_IDs: {string.Join(", ", missing_IDs)}");
 
                 // Assign Stations_IDs without the missing IDs, but include any additional ones found.
                 this.Stations_IDs = IDs_listed_n_used.Concat(additional_IDs).ToList();
@@ -284,110 +401,11 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
 
 
 
-        /// <summary>
-        /// Populates the StationsObservations_Map dictionary from the provided array.
-        /// Uses each station's ID as the dictionary key for fast O(1) lookups later.
-        /// Skips any entry where the station ID is null or already exists in the map.
-        /// Called by the constructor after validation has passed successfully.
-        /// </summary>
-        /// <param name="StationsObservations_Array">The array of station observations to assign.</param>
-        /// <returns>True when the map has been successfully populated.</returns>
-        private bool Assign_StationsObservations(DMI_StationObservations_DataClass[] StationsObservations_Array)
-        {
-            foreach (var stationObservations in StationsObservations_Array)
-            {
-                // Use the station ID as the dictionary key for fast lookups.
-                var id = stationObservations.Get_StationId();
-                if (id != null && !StationsObservations_Map.ContainsKey(id))
-                {
-                    StationsObservations_Map.Add(id, stationObservations);
-                }
-            }
-            return true;
-        }
-
-
-
-        /// <summary>
-        /// Populates the StationsObservations_Map dictionary from the provided list.
-        /// Uses each station's ID as the dictionary key for fast O(1) lookups later.
-        /// Skips any entry where the station ID is null or already exists in the map.
-        /// Called by the constructor after validation has passed successfully.
-        /// </summary>
-        /// <param name="StationsObservations_List">The list of station observations to assign.</param>
-        /// <returns>True when the map has been successfully populated.</returns>
-        private bool Assign_StationsObservations(List<DMI_StationObservations_DataClass> StationsObservations_List)
-        {
-            foreach (var stationObservations in StationsObservations_List)
-            {
-                // Use the station ID as the dictionary key for fast lookups.
-                var id = stationObservations.Get_StationId();
-                if (id != null && !StationsObservations_Map.ContainsKey(id))
-                {
-                    StationsObservations_Map.Add(id, stationObservations);
-                }
-            }
-            return true;
-        }
 
 
 
 
 
-
-
-        ///////////////////////////////////////////////////////////////////////////////////
-        ///                             Public Methods                                  ///
-        ///////////////////////////////////////////////////////////////////////////////////
-        ///
-
-
-
-        /// <summary>
-        /// Checks whether a station with the given ID exists in this response.
-        /// </summary>
-        /// <param name="station_ID">The station ID to check for.</param>
-        /// <returns>True if the station exists, false otherwise.</returns>
-        public bool Check_Contains_Station(string station_ID)
-        {
-            return StationsObservations_Map.ContainsKey(station_ID);
-        }
-
-
-
-        /// <summary>
-        /// Returns the list of all station IDs included in this response.
-        /// </summary>
-        /// <returns>A list of station ID strings.</returns>
-        public List<string> Get_All_StationIDs()
-        {
-            return this.Stations_IDs;
-        }
-
-
-
-        /// <summary>
-        /// Returns all observations from all stations as a flat list.
-        /// Useful when you need to process every reading regardless of station.
-        /// </summary>
-        /// <returns>A flat list of all DMI_StationObservations_DataClass instances.</returns>
-        public List<DMI_StationObservations_DataClass> Get_AllObservations_fromAllStations()
-        {
-            return StationsObservations_Map.Values.ToList();
-        }
-
-
-
-        /// <summary>
-        /// Returns all observations from a specific station by its ID.
-        /// </summary>
-        /// <param name="station_ID">The station ID to retrieve observations for.</param>
-        /// <returns>The DMI_StationObservations_DataClass for the given station, or null if not found.</returns>
-        public DMI_StationObservations_DataClass? Get_AllObservations_fromStation(string station_ID)
-        {
-            // Return the station observations if found, or null if the station doesn't exist.
-            return StationsObservations_Map.TryGetValue(station_ID, out var observations) ? observations : null;
-        }
 
 
 

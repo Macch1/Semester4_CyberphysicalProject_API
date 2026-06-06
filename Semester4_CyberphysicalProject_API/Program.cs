@@ -11,8 +11,7 @@ using Semester4_CyberphysicalProject_API.Data;
 ///
 
 
-// Create the web application builder, which loads configuration (appsettings.json)
-// and sets up the dependency injection (DI) container.      
+// Create the web application builder, which loads configuration (appsettings.json) and sets up the dependency injection (DI) container.      
 var builder = WebApplication.CreateBuilder(args);
 
 

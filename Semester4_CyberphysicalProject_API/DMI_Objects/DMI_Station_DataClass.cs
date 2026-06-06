@@ -2,6 +2,8 @@
 
 namespace Semester4_CyberphysicalProject_API.DMI_Objects
 {
+
+
     /// <summary>
     /// Represents a single DMI station, used as a lightweight reference object.
     /// Used when we need to identify or refer to a station without carrying
@@ -13,6 +15,8 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
     /// </summary>
     public class DMI_Station_DataClass
     {
+
+
         /// <summary>
         /// The unique station identifier as defined by DMI, e.g. "31616".
         /// </summary>
@@ -43,6 +47,7 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
 
 
 
+
         /////////////////////////////////////////////////////////////////////////////////
         ///                             Constructors                                  ///
         /////////////////////////////////////////////////////////////////////////////////
@@ -63,6 +68,8 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
             this.latitude = null;
             this.longtitude = null;
         }
+
+
 
         /// <summary>
         /// Creates a new station data class instance with identity and coordinates.
@@ -88,13 +95,129 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
 
 
 
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                          Public Getter Methods                             ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
+        /// <summary>
+        /// Returns the unique DMI station identifier for this station.
+        /// </summary>
+        /// <returns>The station ID as a string, e.g. "31616".</returns>
+        public string Get_StationId()
+        {
+            return this.station_ID;
+        }
+
+
+
+        /// <summary>
+        /// Returns the human-readable name of this station.
+        /// </summary>
+        /// <returns>The station name as a string, e.g. "Kerteminde".</returns>
+        public string Get_StationName()
+        {
+            return this.station_Name;
+        }
+
+
+
+        /// <summary>
+        /// Returns the latitude coordinate of this station.
+        /// Returns null if coordinates have not been set yet.
+        /// Use Has_Coordinates() to check before calling this.
+        /// </summary>
+        /// <returns>The latitude as a nullable double.</returns>
+        public double? Get_Latitude()
+        {
+            return this.latitude;
+        }
+
+
+
+        /// <summary>
+        /// Returns the longtitude coordinate of this station.
+        /// Returns null if coordinates have not been set yet.
+        /// Use Has_Coordinates() to check before calling this.
+        /// </summary>
+        /// <returns>The longtitude as a nullable double.</returns>
+        public double? Get_Longtitude()
+        {
+            return this.longtitude;
+        }
+
+
+
+
+
+
+
+
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                        Public Coordinate Methods                           ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
+        /// <summary>
+        /// Checks whether this station has coordinates assigned.
+        /// Coordinates are only available after Update_Coordinates() has been called,
+        /// or if the full constructor was used.
+        /// </summary>
+        /// <returns>True if both latitude and longtitude are set, false otherwise.</returns>
+        public bool Has_Coordinates()
+        {
+            if (this.latitude == null || this.longtitude == null)
+            {
+                return false;
+            }
+
+            return this.latitude.HasValue && this.longtitude.HasValue;
+        }
+
+
+
+
+        /// <summary>
+        /// Updates the latitude and longtitude of this station.
+        /// Called when observation data (Request Type 2) becomes available
+        /// after the station was initially created during the setup process.
+        /// Validates the coordinates before assigning them.
+        /// </summary>
+        /// <param name="latitude">The new latitude coordinate of the station.</param>
+        /// <param name="longtitude">The new longtitude coordinate of the station.</param>
+        /// <returns>True if the coordinates were valid and updated, false otherwise.</returns>
+        public bool Update_Coordinates(double latitude, double longtitude)
+        {
+            // Validate the coordinates before assigning them.
+            bool isValid = Validate_Coordinates(latitude, longtitude);
+            if (!isValid)
+            {
+                // Validation failed — coordinates remain unchanged.
+                Console.WriteLine($"[WARNING] DMI_Station_DataClass: Coordinates for station '{station_ID}' were not updated because the provided values failed validation.");
+                return false;
+            }
+
+            // Coordinates are valid — update them.
+            this.latitude = latitude;
+            this.longtitude = longtitude;
+            return true;
+        }
+
+
+
+
+
+
+
 
 
 
         ////////////////////////////////////////////////////////////////////////////////////
-        ///                             Private Methods                                  ///
+        ///                      Private Sanitisation Methods                           ///
         ////////////////////////////////////////////////////////////////////////////////////
-
 
 
         /// <summary>
@@ -121,6 +244,17 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
 
 
 
+
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////////
+        ///                       Private Validation Methods                            ///
+        ////////////////////////////////////////////////////////////////////////////////////
+
+
         /// <summary>
         /// Validates that the provided latitude and longtitude are within
         /// the valid geographic ranges before they are assigned.
@@ -135,112 +269,17 @@ namespace Semester4_CyberphysicalProject_API.DMI_Objects
             // Validate that latitude is within the valid geographic range.
             if (latitude < -90 || latitude > 90)
             {
-                Console.WriteLine($"[ERROR] DMI_Station_DataClass: " + $"Invalid latitude value '{latitude}' for station '{station_ID}'. " + $"Latitude must be between -90 and 90.");
+                Console.WriteLine($"[ERROR] DMI_Station_DataClass: Invalid latitude value '{latitude}' for station '{station_ID}'. Latitude must be between -90 and 90.");
                 return false;
             }
 
             // Validate that longtitude is within the valid geographic range.
             if (longtitude < -180 || longtitude > 180)
             {
-                Console.WriteLine($"[ERROR] DMI_Station_DataClass: " + $"Invalid longtitude value '{longtitude}' for station '{station_ID}'. " + $"longtitude must be between -180 and 180.");
+                Console.WriteLine($"[ERROR] DMI_Station_DataClass: Invalid longtitude value '{longtitude}' for station '{station_ID}'. longtitude must be between -180 and 180.");
                 return false;
             }
 
-            return true;
-        }
-
-
-
-
-
-
-
-        ///////////////////////////////////////////////////////////////////////////////////
-        ///                             Public Methods                                  ///
-        ///////////////////////////////////////////////////////////////////////////////////
-
-
-        /// <summary>
-        /// Returns the unique DMI station identifier for this station.
-        /// </summary>
-        /// <returns>The station ID as a string, e.g. "31616".</returns>
-        public string Get_StationId()
-        {
-            return this.station_ID;
-        }
-
-        /// <summary>
-        /// Returns the human-readable name of this station.
-        /// </summary>
-        /// <returns>The station name as a string, e.g. "Kerteminde".</returns>
-        public string Get_StationName()
-        {
-            return this.station_Name;
-        }
-
-        /// <summary>
-        /// Returns the latitude coordinate of this station.
-        /// Returns null if coordinates have not been set yet.
-        /// Use Has_Coordinates() to check before calling this.
-        /// </summary>
-        /// <returns>The latitude as a nullable double.</returns>
-        public double? Get_Latitude()
-        {
-            return this.latitude;
-        }
-
-        /// <summary>
-        /// Returns the longtitude coordinate of this station.
-        /// Returns null if coordinates have not been set yet.
-        /// Use Has_Coordinates() to check before calling this.
-        /// </summary>
-        /// <returns>The longtitude as a nullable double.</returns>
-        public double? Get_Longtitude()
-        {
-            return this.longtitude;
-        }
-
-        /// <summary>
-        /// Checks whether this station has coordinates assigned.
-        /// Coordinates are only available after Update_Coordinates() has been called,
-        /// or if the full constructor was used.
-        /// </summary>
-        /// <returns>True if both latitude and longtitude are set, false otherwise.</returns>
-        public bool Has_Coordinates()
-        {
-            if(this.latitude == null || this.longtitude == null)
-            {
-                return false;
-            }
-
-            return this.latitude.HasValue && this.longtitude.HasValue;
-        }
-
-        /// <summary>
-        /// Updates the latitude and longtitude of this station.
-        /// Called when observation data (Request Type 2) becomes available
-        /// after the station was initially created during the setup process.
-        /// Validates the coordinates before assigning them.
-        /// </summary>
-        /// <param name="latitude">The new latitude coordinate of the station.</param>
-        /// <param name="longtitude">The new longtitude coordinate of the station.</param>
-        /// <returns>True if the coordinates were valid and updated, false otherwise.</returns>
-        public bool Update_Coordinates(double latitude, double longtitude)
-        {
-            // Validate the coordinates before assigning them.
-            bool isValid = Validate_Coordinates(latitude, longtitude);
-            if (!isValid)
-            {
-                // Validation failed — coordinates remain unchanged.
-                Console.WriteLine($"[WARNING] DMI_Station_DataClass: " +
-                    $"Coordinates for station '{station_ID}' were not updated " +
-                    $"because the provided values failed validation.");
-                return false;
-            }
-
-            // Coordinates are valid — update them.
-            this.latitude = latitude;
-            this.longtitude = longtitude;
             return true;
         }
     }

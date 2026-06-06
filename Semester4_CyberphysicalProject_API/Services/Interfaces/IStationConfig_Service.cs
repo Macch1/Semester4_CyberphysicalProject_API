@@ -13,6 +13,13 @@ namespace Semester4_CyberphysicalProject_API.Services.Interfaces
     public interface IStationConfig_Service
     {
 
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                            File Methods                                     ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
         /// <summary>
         /// Checks whether the local station list file exists on disk.
         /// If false, DiscoverAndSaveStationsAsync() should be called.
@@ -20,6 +27,26 @@ namespace Semester4_CyberphysicalProject_API.Services.Interfaces
         /// <returns>True if the station list file exists, false otherwise.</returns>
         bool StationFileExists();
 
+
+
+
+        /// <summary>
+        /// Deletes the local station list file from disk.
+        /// This forces a fresh discovery on the next startup or reset request.
+        /// </summary>
+        void DeleteStationFile();
+
+
+
+
+
+
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                           Station Methods                                   ///
+        ///////////////////////////////////////////////////////////////////////////////////
 
 
         /// <summary>
@@ -32,44 +59,6 @@ namespace Semester4_CyberphysicalProject_API.Services.Interfaces
         /// the tracked stations, or an empty list if none are found.
         /// </returns>
         List<DMI_Station_DataClass> ReadStations();
-
-
-
-        /// <summary>
-        /// Deletes the local station list file from disk.
-        /// This forces a fresh discovery on the next startup or reset request.
-        /// </summary>
-        void DeleteStationFile();
-
-
-
-        /// <summary>
-        /// Calls the DMI Station API to discover all active stations
-        /// within the configured geographic bounding box.
-        /// Filters to only stations that measure water temperature (tw),
-        /// deduplicates, and saves the result to the default station list file.
-        /// Reads all constraints (min/max stations, file name) from appsettings.json.
-        /// </summary>
-        /// <returns>
-        /// A list of DMI_Station_DataClass instances representing
-        /// the newly discovered stations.
-        /// </returns>
-        Task<List<DMI_Station_DataClass>> DiscoverAndSaveStationsAsync();
-
-
-
-
-        /// <summary>
-        /// Checks whether a station with the given StationId exists
-        /// in the local station list file.
-        /// </summary>
-        /// <param name="stationId">
-        /// The unique DMI station identifier to check for.
-        /// </param>
-        /// <returns>
-        /// True if the station exists in the file, false otherwise.
-        /// </returns>
-        bool CheckStation(string stationId);
 
 
 
@@ -91,6 +80,21 @@ namespace Semester4_CyberphysicalProject_API.Services.Interfaces
 
 
         /// <summary>
+        /// Checks whether a station with the given StationId exists
+        /// in the local station list file.
+        /// </summary>
+        /// <param name="stationId">
+        /// The unique DMI station identifier to check for.
+        /// </param>
+        /// <returns>
+        /// True if the station exists in the file, false otherwise.
+        /// </returns>
+        bool CheckStation(string stationId);
+
+
+
+
+        /// <summary>
         /// Updates a single station's information in the local station list file.
         /// Finds the matching station by StationId and updates its StationName,
         /// Latitude, and longtitude from the provided DMI_Station_DataClass instance.
@@ -107,6 +111,7 @@ namespace Semester4_CyberphysicalProject_API.Services.Interfaces
 
 
 
+
         /// <summary>
         /// Deletes a single station from the local station list file.
         /// Finds the matching station by StationId and removes only that station,
@@ -119,6 +124,33 @@ namespace Semester4_CyberphysicalProject_API.Services.Interfaces
         /// True if the station was found and deleted successfully, false otherwise.
         /// </returns>
         bool DeleteStation(string stationId);
+
+
+
+
+
+
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                          Discovery Methods                                  ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
+        /// <summary>
+        /// Calls the DMI Station API to discover all active stations
+        /// within the configured geographic bounding box.
+        /// Filters to only stations that measure water temperature (tw),
+        /// deduplicates, and saves the result to the default station list file.
+        /// Reads all constraints (min/max stations, file name) from appsettings.json.
+        /// </summary>
+        /// <returns>
+        /// A list of DMI_Station_DataClass instances representing
+        /// the newly discovered stations.
+        /// </returns>
+        Task<List<DMI_Station_DataClass>> DiscoverAndSaveStationsAsync();
+
 
 
     }
