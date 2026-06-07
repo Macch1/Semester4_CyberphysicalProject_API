@@ -1,157 +1,195 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
-using Semester4_CyberphysicalProject_API.Data;
+﻿using Microsoft.AspNetCore.Mvc;
+using Semester4_CyberphysicalProject_API.DMI_Objects;
 using Semester4_CyberphysicalProject_API.Models;
+using Semester4_CyberphysicalProject_API.Services.Interfaces;
 
 namespace Semester4_CyberphysicalProject_API.Controllers
 {
+    /// <summary>
+    /// The main controller for the weather display page.
+    /// Responsible for reading and displaying sea water temperature data.
+    /// Only ever talks to IWeatherDisplay_Facade and IWeatherFetch_Facade —
+    /// never directly to the database or DMI services.
+    /// </summary>
     public class WeatherController : Controller
     {
-        private readonly WeatherContext _context;
 
-        public WeatherController(WeatherContext context)
+        // Default history range constants.
+        private const int HOURS_24 = 24;
+        private const int HOURS_7_DAYS = 168;
+        private const string RANGE_24H = "24h";
+        private const string RANGE_7D = "7d";
+
+        // Configuration key constants.
+        private const string CONFIG_FETCH_INTERVAL_MINUTES = "Dmi:FetchIntervalMinutes";
+
+        // Default fetch interval in minutes, used if the key is not found in appsettings.json.
+        private const int DEFAULT_FETCH_INTERVAL_MINUTES = 15;
+
+
+
+
+        // Read Only
+
+        /// <summary>
+        /// The display facade, used for reading and displaying data.
+        /// </summary>
+        private readonly IWeatherDisplay_Facade _displayFacade;
+
+        /// <summary>
+        /// The fetch facade, used for triggering a manual fetch cycle.
+        /// </summary>
+        private readonly IWeatherFetch_Facade _fetchFacade;
+
+        /// <summary>
+        /// Provides access to the appsettings.json configuration values.
+        /// </summary>
+        private readonly IConfiguration _config;
+
+
+
+
+
+
+
+
+        /////////////////////////////////////////////////////////////////////////////////
+        ///                             Constructors                                  ///
+        /////////////////////////////////////////////////////////////////////////////////
+
+
+        /// <summary>
+        /// Creates a new WeatherController instance.
+        /// All dependencies are given as parameters (DI).
+        /// </summary>
+        /// <param name="displayFacade">The display facade, given as a parameter (DI).</param>
+        /// <param name="fetchFacade">The fetch facade, given as a parameter (DI).</param>
+        /// <param name="config">Provides access to appsettings.json values, given as a parameter (DI).</param>
+        public WeatherController(IWeatherDisplay_Facade displayFacade, IWeatherFetch_Facade fetchFacade, IConfiguration config)
         {
-            _context = context;
+            this._displayFacade = displayFacade;
+            this._fetchFacade = fetchFacade;
+            this._config = config;
         }
 
-        // GET: Weather
-        public async Task<IActionResult> Index()
+
+
+
+
+
+
+
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                          Public Display Actions                            ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
+        /// <summary>
+        /// The main page action.
+        /// Fetches readings, warmest reading, swimming verdict, and tracked stations
+        /// from the display facade and passes them to the view.
+        /// Supports showing either the last 24 hours or the last 7 days of data,
+        /// controlled by the "range" query parameter.
+        /// </summary>
+        /// <param name="range">
+        /// The time range to display. Accepts "24h" for the last 24 hours (default)
+        /// or "7d" for the last 7 days.
+        /// </param>
+        public async Task<IActionResult> Index(string range = RANGE_24H)
         {
-            return View(await _context.WeatherModel.ToListAsync());
-        }
+            // Determine the number of hours to fetch based on the range parameter.
+            int hours = range == RANGE_7D ? HOURS_7_DAYS : HOURS_24;
 
-        // GET: Weather/Details/5
-        public async Task<IActionResult> Details(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            // Fetch all data needed by the view from the display facade.
+            List<WaterTemperatureReading> readings = await this._displayFacade.GetReadingsAsync(hours);
+            WaterTemperatureReading? warmestReading = await this._displayFacade.GetWarmestReadingAsync();
+            List<DMI_Station_DataClass> trackedStations = this._displayFacade.GetTrackedStations();
+            DateTime? latestObservedAt = await this._displayFacade.GetLatestObservedAtAsync();
 
-            var weatherModel = await _context.WeatherModel
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (weatherModel == null)
-            {
-                return NotFound();
-            }
+            // Calculate the swimming verdict for the warmest reading if one exists.
+            SwimmingVerdict_Enum? verdict = warmestReading != null
+                ? this._displayFacade.GetSwimmingVerdict(warmestReading.WaterTemperature)
+                : null;
 
-            return View(weatherModel);
-        }
+            // Pass all data to the view via ViewBag.
+            ViewBag.Readings = readings;
+            ViewBag.WarmestReading = warmestReading;
+            ViewBag.TrackedStations = trackedStations;
+            ViewBag.Verdict = verdict;
+            ViewBag.Range = range;
+            ViewBag.Hours = hours;
+            ViewBag.LatestObservedAt = latestObservedAt;
+            ViewBag.TooColdBelow = this._config.GetValue<double>("Dmi:SwimmingThresholds:TooColdBelow", 17.0);
+            ViewBag.BraveBelow = this._config.GetValue<double>("Dmi:SwimmingThresholds:BraveSwimmersBelow", 20.0);
+            ViewBag.FetchIntervalMinutes = this._config.GetValue<int>("Dmi:FetchIntervalMinutes", 15);
 
-        // GET: Weather/Create
-        public IActionResult Create()
-        {
             return View();
         }
 
-        // POST: Weather/Create
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,TimeStamp,jsonString")] WeatherModel weatherModel)
+
+
+
+
+
+
+
+
+
+
+
+
+        ///////////////////////////////////////////////////////////////////////////////////
+        ///                          Public Fetch Actions                              ///
+        ///////////////////////////////////////////////////////////////////////////////////
+
+
+        /// <summary>
+        /// Manual refresh action.
+        /// Checks if enough time has passed since the last fetch before triggering a new one.
+        /// If the fetch interval has not passed yet, skips the fetch and redirects back immediately.
+        /// This prevents inconsistent data from appearing if the user refreshes too soon.
+        /// Called when the user clicks the manual refresh button on the page.
+        /// </summary>
+        /// <param name="range">
+        /// The current time range — preserved across the refresh so the user
+        /// stays on the same view they were on before clicking refresh.
+        /// </param>
+        public async Task<IActionResult> Refresh(string range = RANGE_24H)
         {
-            if (ModelState.IsValid)
-            {
-                _context.Add(weatherModel);
-                await _context.SaveChangesAsync();
-                return RedirectToAction(nameof(Index));
-            }
-            return View(weatherModel);
-        }
+            // Read the fetch interval from appsettings.json.
+            // Defaults to 15 minutes if not configured.
+            int intervalMinutes = this._config.GetValue<int>(CONFIG_FETCH_INTERVAL_MINUTES, DEFAULT_FETCH_INTERVAL_MINUTES);
 
-        // GET: Weather/Edit/5
-        public async Task<IActionResult> Edit(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
+            // Get the most recent ObservedAt timestamp from the database.
+            DateTime? latestObservedAt = await this._displayFacade.GetLatestObservedAtAsync();
 
-            var weatherModel = await _context.WeatherModel.FindAsync(id);
-            if (weatherModel == null)
+            // If readings exist, check if enough time has passed since the last fetch.
+            if (latestObservedAt != null)
             {
-                return NotFound();
-            }
-            return View(weatherModel);
-        }
+                // Calculate how many minutes have passed since the last reading.
+                double minutesSinceLastFetch = (DateTime.UtcNow - latestObservedAt.Value).TotalMinutes;
 
-        // POST: Weather/Edit/5
-        // To protect from overposting attacks, enable the specific properties you want to bind to.
-        // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("Id,TimeStamp,jsonString")] WeatherModel weatherModel)
-        {
-            if (id != weatherModel.Id)
-            {
-                return NotFound();
-            }
-
-            if (ModelState.IsValid)
-            {
-                try
+                if (minutesSinceLastFetch < intervalMinutes)
                 {
-                    _context.Update(weatherModel);
-                    await _context.SaveChangesAsync();
+                    // Not enough time has passed — skip the fetch and redirect back.
+                    Console.WriteLine($"[INFO] WeatherController.Refresh: Skipping fetch — only {minutesSinceLastFetch:F1} minutes since last fetch. Interval is {intervalMinutes} minutes.");
+                    return RedirectToAction(nameof(Index), new { range });
                 }
-                catch (DbUpdateConcurrencyException)
-                {
-                    if (!WeatherModelExists(weatherModel.Id))
-                    {
-                        return NotFound();
-                    }
-                    else
-                    {
-                        throw;
-                    }
-                }
-                return RedirectToAction(nameof(Index));
-            }
-            return View(weatherModel);
-        }
-
-        // GET: Weather/Delete/5
-        public async Task<IActionResult> Delete(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
             }
 
-            var weatherModel = await _context.WeatherModel
-                .FirstOrDefaultAsync(m => m.Id == id);
-            if (weatherModel == null)
-            {
-                return NotFound();
-            }
+            // Enough time has passed — trigger an immediate fetch cycle.
+            await this._fetchFacade.FetchAndSaveLatestAsync();
 
-            return View(weatherModel);
+            // Redirect back to the main page, preserving the current range.
+            return RedirectToAction(nameof(Index), new { range });
         }
 
-        // POST: Weather/Delete/5
-        [HttpPost, ActionName("Delete")]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> DeleteConfirmed(int id)
-        {
-            var weatherModel = await _context.WeatherModel.FindAsync(id);
-            if (weatherModel != null)
-            {
-                _context.WeatherModel.Remove(weatherModel);
-            }
 
-            await _context.SaveChangesAsync();
-            return RedirectToAction(nameof(Index));
-        }
 
-        private bool WeatherModelExists(int id)
-        {
-            return _context.WeatherModel.Any(e => e.Id == id);
-        }
+
+
     }
 }

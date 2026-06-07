@@ -1,22 +1,342 @@
-html {
-  font-size: 14px;
+/* =============================================================================
+   site.css - Shared styles across all pages
+   Used by: _Layout.cshtml (loaded on every page)
+
+   File Structure Guide
+   1. Design System     - CSS variables (colours, spacing, fonts, shadows)
+   2. Reset             - Box model and margin/padding reset
+   3. Body              - Base page layout (flex column, min full height)
+   4. Header            - Sticky top bar with logo and navigation
+   5. Main Content      - Centred page wrapper with max width
+   6. Page Title Row    - Title and subtitle row at the top of each page
+   7. Card              - White surface box used throughout all pages
+   8. Button            - Shared button styles
+   9. Empty State       - Centred placeholder shown when no data exists
+   10. Footer           - Bottom bar with data source credit
+   11. Responsive       - Mobile adjustments (max-width 640px)
+   ============================================================================= */
+
+
+
+
+
+
+
+
+/* =============================================================================
+   1. Design System
+      CSS variables shared across all pages.
+      Change a value here to update it everywhere at once.
+
+      Colours:
+        --blue           Main brand blue (header, titles, links)
+        --blue-light     Light blue background (active nav, hover states)
+        --bg             Page background (light grey)
+        --surface        Card and header background (white)
+        --border         Subtle divider lines
+        --text           Main body text
+        --text-muted     Secondary and label text
+        --cold           Blue  - used for "Too cold" swimming verdict
+        --brave          Amber - used for "Brave swimmers only" verdict
+        --great          Green - used for "Perfect bathing temperature" verdict
+
+      Sizing:
+        --radius         Standard border radius for cards and panels
+        --radius-sm      Smaller border radius for buttons and badges
+        --shadow         Subtle drop shadow used on cards and header
+   ============================================================================= */
+
+:root {
+    --blue: #003d8f;
+    --blue-light: #e8f0fb;
+    --bg: #f5f6f8;
+    --surface: #ffffff;
+    --border: #dde1e9;
+    --text: #1a1f2e;
+    --text-muted: #718096;
+    --cold: #2196f3;
+    --brave: #f59e0b;
+    --great: #22c55e;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 
-@media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
+
+
+
+/* =============================================================================
+   2. Reset
+      Applies consistent box sizing and removes default browser
+      margin and padding from all elements.
+   ============================================================================= */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
 
-html {
-  position: relative;
-  min-height: 100%;
-}
+
+
+/* =============================================================================
+   3. Body
+      Sets the base font, background colour, and page layout.
+      Uses flex column so the footer is always pushed to the bottom
+      even on short pages.
+   ============================================================================= */
 
 body {
-  margin-bottom: 60px;
+    font-family: Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+
+
+
+/* =============================================================================
+   4. Header
+      Sticky top bar that stays visible when scrolling.
+      Contains the logo on the left and navigation links on the right.
+      .site-header    - Outer bar with blue bottom border
+      .header-inner   - Centred inner wrapper (max 1040px)
+      .logo           - Brand name link on the left
+      .logo-badge     - Small "DMI" label inside the logo
+      .header-nav     - Navigation link container on the right
+      .nav-link       - Individual navigation link
+      .nav-link--active - Highlights the current page link
+   ============================================================================= */
+
+.site-header {
+    background: var(--surface);
+    border-bottom: 3px solid var(--blue);
+    box-shadow: var(--shadow);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-inner {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 24px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.logo {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--blue);
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logo-badge {
+    background: var(--blue);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+}
+
+.header-nav {
+    display: flex;
+    gap: 4px;
+}
+
+.nav-link {
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--text-muted);
+}
+
+    .nav-link:hover {
+        background: var(--blue-light);
+        color: var(--blue);
+    }
+
+.nav-link--active {
+    background: var(--blue-light);
+    color: var(--blue);
+}
+
+
+
+
+/* =============================================================================
+   5. Main Content
+      Centred page wrapper used on every page.
+      flex: 1 makes this section expand to fill the space between
+      the header and footer, keeping the footer at the bottom.
+   ============================================================================= */
+
+.main-content {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 32px 24px 48px;
+    flex: 1;
+    width: 100%;
+}
+
+
+
+
+/* =============================================================================
+   6. Page Title Row
+      The title and subtitle bar at the top of each page.
+      Separated from the content below by a bottom border.
+   ============================================================================= */
+
+.page-title-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.page-title {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--blue);
+}
+
+.page-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+
+
+
+/* =============================================================================
+   7. Card
+      White surface box used throughout all pages to group related content.
+      .card         - Outer container with border, shadow and rounded corners
+      .card-header  - Title bar at the top of the card
+      .card-body    - Padded content area inside the card
+   ============================================================================= */
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 24px;
+    overflow: hidden;
+}
+
+.card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--blue);
+}
+
+.card-body {
+    padding: 20px;
+}
+
+
+
+
+/* =============================================================================
+   8. Button
+      Shared button styles used across all pages.
+      .btn            - Base button (inline-block, padded, rounded)
+      .btn--primary   - Filled blue button (main call to action)
+   ============================================================================= */
+
+.btn {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+}
+
+.btn--primary {
+    background: var(--blue);
+    color: #fff;
+}
+
+    .btn--primary:hover {
+        background: #002d6a;
+    }
+
+
+
+
+/* =============================================================================
+   9. Empty State
+      Centred placeholder shown when a section has no data to display.
+      Used in the graph card and history table card.
+   ============================================================================= */
+
+.empty-state {
+    color: var(--text-muted);
+    text-align: center;
+    padding: 40px;
+    font-size: 14px;
+}
+
+
+
+
+/* =============================================================================
+   10. Footer
+       Bottom bar shown on every page.
+       Contains the data source credit and copyright notice.
+   ============================================================================= */
+
+.site-footer {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    text-align: center;
+    padding: 16px 24px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+    .site-footer a {
+        color: var(--blue);
+    }
+
+
+
+
+/* =============================================================================
+   11. Responsive
+       Adjustments for narrow screens (mobile, max-width 640px).
+       The navigation links are hidden on small screens to save space.
+   ============================================================================= */
+
+@media (max-width: 640px) {
+    .header-nav {
+        display: none;
+    }
 }

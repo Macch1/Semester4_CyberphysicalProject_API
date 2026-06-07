@@ -1,57 +1,133 @@
 ﻿<!DOCTYPE html>
+<!-- ============================================================================
+     _Layout.cshtml - Shared page layout used by all views
+     Used by: All views (configured in _ViewStart.cshtml)
+
+     File Structure Guide
+     1. Head            - Meta tags, page title, stylesheets, CDN scripts
+        1a. Stylesheets - Shared site.css + page-specific Styles slot
+        1b. Scripts     - Chart.js CDN scripts loaded for all pages
+        1c. Slots       - Styles and Head slots for page overrides
+     2. Header          - Sticky top bar with logo and navigation links
+     3. Main Content    - RenderBody() placeholder for page-specific content
+     4. Footer          - Data source credit and copyright
+     5. Scripts Slot    - Scripts slot for page-specific JavaScript
+
+     Section Slots available to child views:
+       section Styles  - Add page-specific stylesheets inside head
+       section Head    - Add any other page-specific head content
+       section Scripts - Add page-specific JavaScript before body closes
+
+     ViewData keys used by this layout:
+       ViewData["Title"]      - Sets the browser tab title
+       ViewData["ActivePage"] - Highlights the correct navigation link
+     ============================================================================ -->
+
+
+
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Semester4_CyberphysicalProject_API</title>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+
+    <!-- Page title - set via ViewData["Title"] in each view -->
+    <title>@ViewData["Title"] - DMI Sea Temperature</title>
+
+    <!-- ========================================================================
+         1a. Stylesheets
+             site.css contains the shared design system and layout styles.
+             Page-specific stylesheets are injected via the Styles slot below.
+         ======================================================================== -->
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/Semester4_CyberphysicalProject_API.styles.css" asp-append-version="true" />
+
+
+
+    <!-- ========================================================================
+         1b. CDN Scripts
+             Chart.js and its plugins are loaded on every page.
+             They are loaded in head so they are available when page-specific
+             chart initialisation code runs at the bottom of the body.
+
+             Load order matters:
+               1. chart.js                  - Core Chart.js library
+               2. chartjs-adapter-date-fns  - Enables the time-based X axis
+               3. chartjs-plugin-annotation - Enables threshold lines on graphs
+         ======================================================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+
+
+
+    <!-- ========================================================================
+         1c. Page-specific slots
+             Child views can inject content into head using these sections.
+             Both are optional - pages that do not need them simply omit them.
+         ======================================================================== -->
+    <!-- Slot for page-specific stylesheets e.g. weather.css -->
+    @await RenderSectionAsync("Styles", required: false)
+
+    <!-- Slot for any other page-specific head content -->
+    @await RenderSectionAsync("Head", required: false)
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
 
-                <!-- Title / Title Button -->
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">Semester4_CyberphysicalProject_API</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <!-- Navigations Bar -->
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Weather" asp-action="Index">Weather</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
+    <!-- ========================================================================
+         2. Header
+            Sticky top bar that stays visible when scrolling.
+            The logo links back to the Weather page.
+            The active navigation link is highlighted using ViewData["ActivePage"].
+            Styles defined in site.css under the Header section.
+         ======================================================================== -->
+    <header class="site-header">
+        <div class="header-inner">
 
-    <footer class="border-top footer text-muted">
-        
-        <!-- Trademarker area -->
-        <div class="container">
-            &copy; 2026 - Semester4_CyberphysicalProject_API - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
+            <!-- Logo - links to the Weather page -->
+            <a href="/Weather" class="logo">
+                <span class="logo-badge">DMI</span> Sea Temperature
+            </a>
+
+            <!-- Navigation links - active page is highlighted -->
+            <nav class="header-nav">
+                <a href="/Home" class="nav-link @(ViewData["ActivePage"]?.ToString() == "Home" ? "nav-link--active" : "")">Home</a>
+                <a href="/Weather" class="nav-link @(ViewData["ActivePage"]?.ToString() == "Weather" ? "nav-link--active" : "")">Weather</a>
+            </nav>
+
         </div>
+    </header>
+
+
+    <!-- ========================================================================
+         3. Main Content
+            RenderBody() is replaced by the content of the current view.
+            Wrapped in .main-content which centres and constrains the width.
+            Styles defined in site.css under the Main Content section.
+         ======================================================================== -->
+    <main class="main-content">
+        @RenderBody()
+    </main>
+
+
+    <!-- ========================================================================
+         4. Footer
+            Shown at the bottom of every page.
+            Contains the DMI data source credit and copyright notice.
+            Styles defined in site.css under the Footer section.
+         ======================================================================== -->
+    <footer class="site-footer">
+        Data source: <a href="https://www.dmi.dk" target="_blank">DMI Oceanographic Observation API</a>
+        &nbsp;&middot;&nbsp; &copy; 2026 Semester 4 Cyberphysical Project
     </footer>
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
+
+
+    <!-- ========================================================================
+         5. Page-specific scripts slot
+            Child views inject their JavaScript here using the Scripts section.
+            Placed at the bottom of the body so the DOM is fully loaded
+            before any scripts run.
+         ======================================================================== -->
     @await RenderSectionAsync("Scripts", required: false)
+
+
 </body>
 </html>

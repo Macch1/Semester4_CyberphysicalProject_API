@@ -45,6 +45,31 @@ namespace Semester4_CyberphysicalProject_API.Services.Interfaces
         Task<WaterTemperatureReading?> GetWarmestReadingAsync();
 
 
+        /// <summary>
+        /// Returns the most recent ObservedAt timestamp across all readings in the database.
+        /// Used by the Controller to check whether enough time has passed since the last fetch
+        /// before triggering a manual refresh.
+        /// Returns null if no readings exist in the database yet.
+        /// </summary>
+        /// <returns>
+        /// The most recent ObservedAt timestamp as a nullable DateTime,
+        /// or null if no readings exist.
+        /// </returns>
+        Task<DateTime?> GetLatestObservedAtAsync();
+
+
+        /// <summary>
+        /// Returns a swimming suitability verdict based on the given temperature,
+        /// using the thresholds configured in appsettings.json.
+        /// </summary>
+        /// <param name="temperature">
+        /// The water temperature in degrees Celsius to evaluate.
+        /// </param>
+        /// <returns>
+        /// A SwimmingVerdict_Enum value representing the swimming suitability verdict.
+        /// </returns>
+        SwimmingVerdict_Enum GetSwimmingVerdict(double temperature);
+
 
 
 
@@ -67,32 +92,6 @@ namespace Semester4_CyberphysicalProject_API.Services.Interfaces
         /// or an empty list if no stations are configured.
         /// </returns>
         List<DMI_Station_DataClass> GetTrackedStations();
-
-
-
-
-
-
-
-
-
-        ///////////////////////////////////////////////////////////////////////////////////
-        ///                            Verdict Methods                                  ///
-        ///////////////////////////////////////////////////////////////////////////////////
-
-
-        /// <summary>
-        /// Returns a swimming suitability verdict based on the given temperature,
-        /// using the thresholds configured in appsettings.json.
-        /// </summary>
-        /// <param name="temperature">
-        /// The water temperature in degrees Celsius to evaluate.
-        /// </param>
-        /// <returns>
-        /// A string verdict — one of:
-        /// "Too cold", "Brave swimmers only", or "Perfect bathing temperature".
-        /// </returns>
-        SwimmingVerdict_Enum GetSwimmingVerdict(double temperature);
 
 
 

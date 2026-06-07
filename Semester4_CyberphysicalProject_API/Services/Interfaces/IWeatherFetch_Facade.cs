@@ -5,11 +5,12 @@
     /// This is the interface the Background Service uses — it only exposes
     /// fetch and store focused methods.
     ///
-    /// The Background Service never talks to IDMI_Ocean_Service or
+    /// DmiFetch_BackgroundService never talks to IDMI_Ocean_Service or
     /// IStationConfig_Service directly — it only ever sees this interface.
     /// </summary>
     public interface IWeatherFetch_Facade
     {
+
 
         ///////////////////////////////////////////////////////////////////////////////////
         ///                             Fetch Methods                                   ///
@@ -27,6 +28,21 @@
         Task FetchAndSaveLatestAsync();
 
 
+        /// <summary>
+        /// Returns the most recent ObservedAt timestamp across all readings in the database.
+        /// Used by DmiFetch_BackgroundService to check whether enough time has passed
+        /// since the last fetch before triggering a new fetch cycle.
+        /// Returns null if no readings exist in the database yet.
+        /// </summary>
+        /// <returns>
+        /// The most recent ObservedAt timestamp as a nullable DateTime,
+        /// or null if no readings exist.
+        /// </returns>
+        Task<DateTime?> GetLastFetchTimestampAsync();
+
+
+
+
 
 
 
@@ -34,7 +50,7 @@
 
 
         ///////////////////////////////////////////////////////////////////////////////////
-        ///                            Station Methods                                  ///
+        ///                            Discover Methods                                 ///
         ///////////////////////////////////////////////////////////////////////////////////
 
 
@@ -63,6 +79,8 @@
 
 
 
+
+
         ///////////////////////////////////////////////////////////////////////////////////
         ///                             Reset Methods                                   ///
         ///////////////////////////////////////////////////////////////////////////////////
@@ -73,8 +91,6 @@
         /// Called when the user requests a full reset from the UI or app settings.
         /// </summary>
         Task ResetAndRediscoverAsync();
-
-
 
 
 

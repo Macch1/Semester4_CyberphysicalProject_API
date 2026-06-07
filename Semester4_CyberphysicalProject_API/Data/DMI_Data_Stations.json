@@ -1,0 +1,38 @@
+[
+  {
+    "stationId": "23131",
+    "stationName": "Juelsminde Havn II"
+  },
+  {
+    "stationId": "23289",
+    "stationName": "Fredericia Havn II"
+  },
+  {
+    "stationId": "26459",
+    "stationName": "Fynshav Havn II"
+  },
+  {
+    "stationId": "27083",
+    "stationName": "Ballen Havn II"
+  },
+  {
+    "stationId": "28231",
+    "stationName": "Slipshavn II"
+  },
+  {
+    "stationId": "28547",
+    "stationName": "Bagenkop Havn II"
+  },
+  {
+    "stationId": "29394",
+    "stationName": "Korsør Havn II"
+  },
+  {
+    "stationId": "31417",
+    "stationName": "Nakskov I"
+  },
+  {
+    "stationId": "31574",
+    "stationName": "Rødbyhavns Havn II"
+  }
+]

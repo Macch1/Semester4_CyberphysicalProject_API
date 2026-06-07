@@ -1,41 +1,528 @@
-﻿@model IEnumerable<Semester4_CyberphysicalProject_API.Models.WeatherModel>
+﻿@using System.Text.Json
+@using Semester4_CyberphysicalProject_API.Models
+@using Semester4_CyberphysicalProject_API.DMI_Objects
+
+
+
+<!-- ============================================================================
+     File Structure Guide
+
+     1. Code Block       - C# variables, ViewBag casting, chart data prep
+     2. Section Styles   - Links weather.css page-specific stylesheet
+     3. Page Title Row   - Page title and last updated timestamp
+     4. Top Row          - Hero card (warmest station) + countdown panel
+        4a. Hero Card    - Warmest station temp, verdict, station pills
+        4b. Refresh Panel- Auto-refresh countdown timer
+     5. Graph Card       - Range tabs (24h / 7d) + Chart.js graph
+     6. History Table    - 100 most recent readings across all stations
+     7. Section Scripts  - Countdown timer logic + Chart.js initialisation
+     ============================================================================ -->
+
+
+
 
 @{
-    ViewData["Title"] = "Index";
+    ViewData["Title"] = "Sea Water Temperature";
+    ViewData["ActivePage"] = "Weather";
+
+    // Cast ViewBag values to their proper C# types.
+    // Falls back to safe defaults if a value is missing.
+    List<WaterTemperatureReading> readings = ViewBag.Readings as List<WaterTemperatureReading> ?? new List<WaterTemperatureReading>();
+    WaterTemperatureReading? warmestReading = ViewBag.WarmestReading as WaterTemperatureReading;
+    List<DMI_Station_DataClass> trackedStations = ViewBag.TrackedStations as List<DMI_Station_DataClass> ?? new List<DMI_Station_DataClass>();
+    SwimmingVerdict_Enum? verdict = ViewBag.Verdict as SwimmingVerdict_Enum?;
+    string range = ViewBag.Range as string ?? "24h";
+    DateTime? latestObservedAt = ViewBag.LatestObservedAt as DateTime?;
+    double tooColdBelow = ViewBag.TooColdBelow is double tcc ? tcc : 17.0;
+    double braveBelow = ViewBag.BraveBelow is double bb ? bb : 20.0;
+    int fetchIntervalMinutes = ViewBag.FetchIntervalMinutes is int fi ? fi : 15;
+    int fetchIntervalSeconds = fetchIntervalMinutes * 60;
+
+    // Colour palette for stations - one colour per station line on the graph.
+    // The order here must match the order stations appear in readingsByStation.
+    string[] palette = new[] { "#003d8f", "#e05c00", "#1a8a4a", "#8b2fc9", "#b5000f" };
+
+    // Resolve the CSS class and text label for the hero card swimming verdict.
+    // The CSS class controls the coloured left border on the hero card.
+    string verdictClass = verdict switch
+    {
+        SwimmingVerdict_Enum.TooCold => "cold",
+        SwimmingVerdict_Enum.BraveOnly => "brave",
+        SwimmingVerdict_Enum.PerfectTemperature => "great",
+        _ => "cold"
+    };
+
+    string verdictLabel = verdict switch
+    {
+        SwimmingVerdict_Enum.TooCold => "Too cold",
+        SwimmingVerdict_Enum.BraveOnly => "Brave swimmers only",
+        SwimmingVerdict_Enum.PerfectTemperature => "Perfect bathing temperature",
+        _ => "No data yet"
+    };
+
+    // Group readings by station name and sort oldest to newest.
+    // Chart.js requires data in chronological order to draw lines correctly.
+    Dictionary<string, List<WaterTemperatureReading>> readingsByStation = readings
+        .GroupBy(r => r.StationName)
+        .ToDictionary(g => g.Key, g => g.OrderBy(r => r.ObservedAt).ToList());
+
+    // Build the chart data as a JSON string for Chart.js.
+    // Each station maps to a list of { time, temp } objects.
+    // DateTime.SpecifyKind ensures the Z (UTC) suffix is included,
+    // which new Date() in JavaScript requires to parse correctly.
+    // Without the Z suffix, Danish locale machines produce dots instead of colons,
+    // causing Invalid Date errors in the browser.
+    var chartData = readingsByStation.ToDictionary(
+        kvp => kvp.Key,
+        kvp => kvp.Value.Select(r => new
+        {
+            time = DateTime.SpecifyKind(r.ObservedAt, DateTimeKind.Utc).ToString("o"),
+            temp = r.WaterTemperature
+        }).ToList()
+    );
+    string chartJson = JsonSerializer.Serialize(chartData);
+
+    // Build a list of station names in the same order as readingsByStation.
+    // Used in the history table to match each reading to its palette colour.
+    List<string> stationNames = readingsByStation.Keys.ToList();
 }
 
-<h1>Index</h1>
 
-<p>
-    <a asp-action="Create">Create New</a>
-</p>
-<table class="table">
-    <thead>
-        <tr>
-            <th>
-                @Html.DisplayNameFor(model => model.TimeStamp)
-            </th>
-            <th>
-                @Html.DisplayNameFor(model => model.jsonString)
-            </th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-@foreach (var item in Model) {
-        <tr>
-            <td>
-                @Html.DisplayFor(modelItem => item.TimeStamp)
-            </td>
-            <td>
-                @Html.DisplayFor(modelItem => item.jsonString)
-            </td>
-            <td>
-                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
-                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
-            </td>
-        </tr>
+
+
+<!-- ============================================================================
+     2. Page-specific stylesheet
+        Loads weather.css which contains all styles unique to this page.
+        site.css (loaded in _Layout.cshtml) handles all shared styles.
+     ============================================================================ -->
+@section Styles {
+    <link rel="stylesheet" href="~/css/weather.css" asp-append-version="true" />
 }
-    </tbody>
-</table>
+
+
+
+
+<!-- ============================================================================
+     3. Page Title Row
+        Shows the page title and the timestamp of the most recent reading.
+        The timestamp comes from the database - it is when DMI last reported,
+        not when the app last fetched.
+     ============================================================================ -->
+<div class="page-title-row">
+    <div>
+        <div class="page-title">Sea Water Temperature</div>
+        <div class="page-subtitle">
+            @if (latestObservedAt.HasValue)
+            {
+                <!-- Show the most recent ObservedAt timestamp in local time -->
+                <span>Last updated: @latestObservedAt.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
+            }
+            else
+            {
+                <!-- Shown on first run before any data has been fetched -->
+                <span>No data yet - waiting for first fetch</span>
+            }
+        </div>
+    </div>
+</div>
+
+
+
+
+<!-- ============================================================================
+     4. Top Row
+        A CSS grid with two columns:
+          Left  (1fr)  - Hero card showing the warmest station
+          Right (auto) - Refresh panel showing the auto-refresh countdown
+        Defined as .top-row in weather.css
+     ============================================================================ -->
+<div class="top-row">
+
+
+    <!-- ========================================================================
+         4a. Hero Card
+             Shows the warmest station temperature, swimming verdict,
+             and a summary pill for every tracked station.
+             The coloured left border is controlled by temp-card--cold/brave/great
+             which maps to the --cold, --brave, --great CSS variables in site.css
+         ======================================================================== -->
+    @if (warmestReading != null && verdict.HasValue)
+    {
+        <div class="temp-card temp-card--@verdictClass">
+
+            <!-- Large temperature number e.g. 17.3 degrees C -->
+            <div class="temp-value">
+                @warmestReading.WaterTemperature.ToString("F1")<span class="temp-unit">°C</span>
+            </div>
+
+            <!-- Station name, verdict label, and station summary pills -->
+            <div class="temp-info">
+                <div class="temp-station">@warmestReading.StationName</div>
+                <div class="temp-verdict">@verdictLabel</div>
+
+                <!-- Station summary pills - one pill per tracked station -->
+                <!-- Only shown when there is more than one tracked station -->
+                @if (trackedStations.Count > 1)
+                {
+                    <div class="station-summary">
+
+                        <!-- Get the most recent reading per station for the pills -->
+                        @foreach (WaterTemperatureReading r in readings.GroupBy(r => r.StationName).Select(g => g.OrderByDescending(x => x.ObservedAt).First()))
+                        {
+                            <!-- Resolve the pill colour class from the swimming verdict for this station -->
+                            string pillClass = @Context.RequestServices
+                            .GetService<Semester4_CyberphysicalProject_API.Services.Interfaces.IWeatherDisplay_Facade>()!
+                            .GetSwimmingVerdict(r.WaterTemperature) switch
+                            {
+                                SwimmingVerdict_Enum.TooCold => "cold",
+                                SwimmingVerdict_Enum.BraveOnly => "brave",
+                                SwimmingVerdict_Enum.PerfectTemperature => "great",
+                                _ => "cold"
+                            };
+
+                            <!-- One pill per station showing name and temperature -->
+                            <span class="station-pill pill--@pillClass">
+                                @r.StationName @r.WaterTemperature.ToString("F1")°C
+                            </span>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Empty state - shown before the first fetch completes -->
+        <div class="empty-card">
+            <p>No temperature data yet.</p>
+            <p style="margin-top:8px;font-size:13px;">Waiting for the first fetch from DMI.</p>
+        </div>
+    }
+
+
+    <!-- ========================================================================
+         4b. Refresh Panel
+             Shows a countdown timer until the next automatic page reload.
+             The countdown is driven by JavaScript in section Scripts below.
+             When it reaches zero, the page reloads automatically.
+         ======================================================================== -->
+    <div class="refresh-panel">
+        <!-- Countdown display - updated every second by the JavaScript timer -->
+        <div class="refresh-countdown" id="countdown">--:--</div>
+        <div class="refresh-label">until auto-refresh</div>
+        <!-- Manual refresh button - commented out, uncomment to re-enable -->
+        <!-- <a href="/Weather/Refresh?range=@range" class="btn btn--primary">Refresh now</a> -->
+    </div>
+
+
+</div>
+
+
+
+
+<!-- ============================================================================
+     5. Graph Card
+        Contains the range tabs (24h / 7d) and the Chart.js temperature graph.
+        The graph is initialised in section Scripts below.
+        Switching tabs reloads the page with a different range query parameter.
+     ============================================================================ -->
+<div class="card">
+    <div class="card-header">
+        Temperature History
+
+        <!-- Range tabs - links that reload the page with range=24h or range=7d -->
+        <!-- The active tab gets the range-tab--active CSS class -->
+        <div class="range-tabs">
+            <a href="/Weather?range=24h" class="range-tab @(range == "24h" ? "range-tab--active" : "")">Last 24 hours</a>
+            <a href="/Weather?range=7d" class="range-tab @(range == "7d" ? "range-tab--active" : "")">Last 7 days</a>
+        </div>
+    </div>
+    <div class="card-body">
+        @if (readings.Any())
+        {
+            <!-- Chart.js renders into this canvas element -->
+            <div class="chart-container">
+                <canvas id="tempChart"></canvas>
+            </div>
+        }
+        else
+        {
+            <div class="empty-state">No readings available for this time range.</div>
+        }
+    </div>
+</div>
+
+
+
+
+<!-- ============================================================================
+     6. History Table Card
+        Shows the 100 most recent readings across all stations, newest first.
+        Each row is colour-coded by swimming verdict (cold / brave / great).
+        The station colour dot matches the line colour on the graph above.
+     ============================================================================ -->
+<div class="card">
+    <div class="card-header">Recent Readings</div>
+    @if (readings.Any())
+    {
+        <table>
+            <thead>
+                <tr>
+                    <th>Station</th>
+                    <th>Temperature</th>
+                    <th>Verdict</th>
+                    <th>Observed at</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Loop over the 100 most recent readings, newest first -->
+                @foreach (WaterTemperatureReading r in readings.OrderByDescending(r => r.ObservedAt).Take(100))
+                {
+                    SwimmingVerdict_Enum rowVerdict = Context.RequestServices
+                    .GetService<Semester4_CyberphysicalProject_API.Services.Interfaces.IWeatherDisplay_Facade>()!
+                    .GetSwimmingVerdict(r.WaterTemperature);
+
+                    // CSS class controls the row colour (cold / brave / great)
+                    string rowClass = rowVerdict switch
+                    {
+                        SwimmingVerdict_Enum.TooCold => "cold",
+                        SwimmingVerdict_Enum.BraveOnly => "brave",
+                        SwimmingVerdict_Enum.PerfectTemperature => "great",
+                        _ => "cold"
+                    };
+
+                    // Text label shown in the verdict pill column
+                    string rowVerdictLabel = rowVerdict switch
+                    {
+                        SwimmingVerdict_Enum.TooCold => "Too cold",
+                        SwimmingVerdict_Enum.BraveOnly => "Brave swimmers only",
+                        SwimmingVerdict_Enum.PerfectTemperature => "Perfect",
+                        _ => ""
+                    };
+
+                    // Match this station to its palette colour index for the dot
+                    int stationIndex = stationNames.IndexOf(r.StationName);
+                    string dotColour = stationIndex >= 0 ? palette[stationIndex % palette.Length] : "#999";
+
+                    <tr class="row--@rowClass">
+                        <td>
+                            <!-- Coloured dot matching the station line on the graph -->
+                            <span class="station-dot" style="background:@dotColour;"></span>
+                            @r.StationName
+                        </td>
+                        <td class="temp-cell">@r.WaterTemperature.ToString("F1")°C</td>
+                        <td><span class="verdict-pill">@rowVerdictLabel</span></td>
+                        <td class="meta-cell">@r.ObservedAt.ToLocalTime().ToString("dd MMM HH:mm")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <div class="empty-state">No readings available yet.</div>
+    }
+</div>
+
+
+
+
+@section Scripts {
+    <script>
+
+                // ====================================================================
+                // 7a. Auto-refresh countdown timer
+                //     Counts down based on time already elapsed since the last
+                //     observation - so the timer always reflects the true remaining
+                //     wait time rather than resetting to the full interval on every
+                //     page load.
+                // ====================================================================
+                (function ()
+                {
+                    // Total seconds in the fetch interval - injected from C# via Razor
+                    const intervalSeconds = @fetchIntervalSeconds;
+
+                    // The timestamp of the last observation - injected from C# via Razor
+                    // DateTime.SpecifyKind ensures the Z suffix is included so JavaScript
+                    // parses it correctly as UTC rather than local time.
+                    const lastObservedAt = new Date("@(latestObservedAt.HasValue? DateTime.SpecifyKind(latestObservedAt.Value, DateTimeKind.Utc).ToString("o") : "")");
+
+                    // Calculate how many seconds have already passed since the last observation.
+                    // Falls back to 0 if no observation exists yet (first run).
+                    const secondsSinceLast = !isNaN(lastObservedAt)
+                        ? Math.floor((new Date() - lastObservedAt) / 1000)
+                        : 0;
+
+                    // Start the countdown at the remaining time - clamped between 0 and the full interval.
+                    // If more than a full interval has passed, start at 0 so a fetch triggers immediately.
+                    let remaining = Math.max(0, Math.min(intervalSeconds, intervalSeconds - secondsSinceLast));
+
+                    // Formats a number of seconds as MM:SS for the countdown display
+                    function formatTime(seconds)
+                    {
+                        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                        const s = (seconds % 60).toString().padStart(2, '0');
+                        return m + ':' + s;
+                    }
+
+                    // Set the initial countdown display before the first tick
+                    const el = document.getElementById('countdown');
+                    el.textContent = formatTime(remaining);
+
+                    // Tick every 1000ms - decrement and update the display
+                    const timer = setInterval(function ()
+                    {
+                        remaining--;
+
+                        if (remaining <= 0)
+                        {
+                            // Countdown reached zero - stop the timer and reload the page
+                            clearInterval(timer);
+
+                            // Reload preserving the current range tab (24h or 7d)
+                            window.location.href = '/Weather?range=@range';
+                        }
+                        else
+                        {
+                            el.textContent = formatTime(remaining);
+                        }
+
+                    }, 1000);
+                })();
+
+
+
+
+        // ====================================================================
+        // 7b. Chart.js graph initialisation
+        //     Builds a multi-line time-series chart - one line per station.
+        //     Data is injected from C# as a JSON string via Html.Raw().
+        //     The X axis window is fixed from rangeHours ago to now.
+        //     Two dashed threshold lines mark the swimming verdict boundaries.
+        // ====================================================================
+        (function ()
+        {
+            // Find the canvas element that Chart.js will render into
+            const canvas = document.getElementById('tempChart');
+
+            // Guard - if no canvas exists (empty state), exit early
+            if (!canvas)
+            {
+                return;
+            }
+
+            // Inject server-side data into JavaScript via Razor
+            // chartData  - Dictionary of stationName to list of time+temp points
+            // palette    - C# colour array serialised to a JS array
+            // rangeHours - number of hours the chart should show (24 or 168)
+            const chartData =  @Html.Raw(chartJson);
+            const palette =    @Html.Raw(JsonSerializer.Serialize(palette));
+            const rangeHours = @(range == "7d" ? 168 : 24);
+
+            // Fix the X axis window from rangeHours ago to now.
+            // Without explicit min/max, Chart.js may not render sparse data correctly.
+            const xMax = new Date();
+            const xMin = new Date(xMax.getTime() - rangeHours * 60 * 60 * 1000);
+
+            // Build one Chart.js dataset per station
+            const datasets  = [];
+            let colourIndex = 0;
+
+            for (const [stationName, points] of Object.entries(chartData))
+            {
+                // Assign the next colour from the palette - wraps around if more than 5 stations
+                const colour = palette[colourIndex % palette.length];
+                colourIndex++;
+
+                // Each point maps to { x: Date, y: temperature }
+                datasets.push({
+                    label:           stationName,
+                    data:            points.map(p => ({ x: new Date(p.time), y: p.temp })),
+                    borderColor:     colour,
+                    backgroundColor: colour + '22',  // 22 = 13% opacity hex suffix
+                    borderWidth:     2,
+                    pointRadius:     points.length > 200 ? 0 : 4,  // Hide dots for dense data
+                    tension:         0.3,  // Slight curve on the lines
+                    fill:            false
+                });
+            }
+
+            // Swimming threshold values - injected from appsettings.json via C#
+            const tooColdBelow = @tooColdBelow;
+            const braveBelow =   @braveBelow;
+
+            // Initialise the Chart.js chart
+            new Chart(canvas, {
+                type: 'line',
+                data: { datasets },
+                options:
+                {
+                    responsive:          true,   // Resizes with the browser window
+                    maintainAspectRatio: false,  // Allows fixed height from CSS
+                    interaction:         { mode: 'index', intersect: false },  // Tooltip shows all stations at once
+
+                    scales:
+                    {
+                        // X axis - time based, fixed window from xMin to xMax
+                        x:
+                        {
+                            type: 'time',
+                            min:  xMin.toISOString(),
+                            max:  xMax.toISOString(),
+                            time: {
+                                unit:           rangeHours <= 24 ? 'hour' : 'day',  // Hour ticks for 24h, day ticks for 7d
+                                displayFormats: { hour: 'HH:mm', day: 'dd MMM' }
+                            },
+                            grid: { color: '#dde1e9' }
+                        },
+
+                        // Y axis - fixed temperature range in degrees Celsius
+                        y:
+                        {
+                            min:   -4,
+                            max:   30,
+                            ticks: { stepSize: 1, callback: v => v + 'C' },  // One tick per degree
+                            grid:  { color: '#dde1e9' }
+                        }
+                    },
+
+                    plugins:
+                    {
+                        legend: { position: 'bottom' },  // Station names shown below the graph
+
+                        // Annotation plugin - draws dashed threshold lines on the graph
+                        annotation:
+                        {
+                            annotations:
+                            {
+                                // Blue dashed line at the too cold threshold
+                                coldLine:
+                                {
+                                    type:        'line',
+                                    yMin:        tooColdBelow,
+                                    yMax:        tooColdBelow,
+                                    borderColor: '#2196f3',
+                                    borderWidth: 1.5,
+                                    borderDash:  [6, 4],  // 6px dash, 4px gap
+                                    label:       { content: 'Too cold', display: false, position: 'end', font: { size: 11 } }
+                                },
+
+                                // Amber dashed line at the brave swimmers threshold
+                                braveLine:
+                                {
+                                    type:        'line',
+                                    yMin:        braveBelow,
+                                    yMax:        braveBelow,
+                                    borderColor: '#f59e0b',
+                                    borderWidth: 1.5,
+                                    borderDash:  [6, 4],  // 6px dash, 4px gap
+                                    label:       { content: 'Brave swimmers', display: false, position: 'end', font: { size: 11 } }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+}

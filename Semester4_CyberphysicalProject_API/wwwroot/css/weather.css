@@ -1,0 +1,392 @@
+/* =============================================================================
+   weather.css - Page-specific styles for the Weather page (Index.cshtml)
+   Used by: Views/Weather/Index.cshtml via @section Styles
+   Depends on: site.css (must be loaded first for CSS variables to work)
+
+   File Structure Guide
+   1. Top Row           - CSS grid containing hero card and refresh panel
+   2. Hero Card         - Large temperature display for the warmest station
+   3. Station Pills     - Small coloured pills showing all tracked stations
+   4. Empty Card        - Placeholder shown before first fetch completes
+   5. Refresh Panel     - Auto-refresh countdown timer panel
+   6. Range Tabs        - 24h / 7d toggle tabs above the graph
+   7. Graph             - Chart.js canvas container
+   8. Table             - History table showing the 100 most recent readings
+   9. Responsive        - Mobile adjustments (max-width 640px)
+   ============================================================================= */
+
+
+
+
+
+
+
+
+
+/* =============================================================================
+   1. Top Row
+      A two-column CSS grid:
+        Left  (1fr)  - Hero card (takes all available space)
+        Right (auto) - Refresh panel (shrinks to fit its content)
+   ============================================================================= */
+
+.top-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    margin-bottom: 24px;
+    align-items: stretch;
+}
+
+
+
+
+/* =============================================================================
+   2. Hero Card
+      Large card showing the warmest station temperature and swimming verdict.
+      The coloured left border changes based on the verdict:
+        .temp-card--cold  - Blue  border (Too cold)
+        .temp-card--brave - Amber border (Brave swimmers only)
+        .temp-card--great - Green border (Perfect bathing temperature)
+
+      Internal layout (left to right):
+        .temp-value   - The large temperature number
+        .temp-info    - Station name, verdict label, and station pills
+   ============================================================================= */
+
+.temp-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px 32px;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    gap: 32px;
+}
+
+.temp-card--cold {
+    border-left: 5px solid var(--cold);
+}
+
+.temp-card--brave {
+    border-left: 5px solid var(--brave);
+}
+
+.temp-card--great {
+    border-left: 5px solid var(--great);
+}
+
+.temp-value {
+    font-size: 4rem;
+    font-weight: 700;
+    line-height: 1;
+    font-family: monospace;
+}
+
+.temp-card--cold .temp-value {
+    color: var(--cold);
+}
+
+.temp-card--brave .temp-value {
+    color: var(--brave);
+}
+
+.temp-card--great .temp-value {
+    color: var(--great);
+}
+
+.temp-unit {
+    font-size: 2rem;
+    font-weight: 400;
+}
+
+.temp-info {
+    flex: 1;
+}
+
+.temp-station {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.temp-verdict {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+
+
+
+/* =============================================================================
+   3. Station Pills
+      A row of small coloured pills shown inside the hero card.
+      One pill per tracked station, showing the station name and temperature.
+      The pill border and text colour matches the swimming verdict:
+        .pill--cold  - Blue  (Too cold)
+        .pill--brave - Amber (Brave swimmers only)
+        .pill--great - Green (Perfect bathing temperature)
+   ============================================================================= */
+
+.station-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.station-pill {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 99px;
+    border: 1.5px solid;
+    font-size: 12px;
+    font-weight: 600;
+    background: #fff;
+}
+
+.pill--cold {
+    border-color: var(--cold);
+    color: var(--cold);
+}
+
+.pill--brave {
+    border-color: var(--brave);
+    color: var(--brave);
+}
+
+.pill--great {
+    border-color: var(--great);
+    color: var(--great);
+}
+
+
+
+
+/* =============================================================================
+   4. Empty Card
+      Placeholder shown in the hero card position before the first fetch
+      completes and no temperature data exists yet.
+   ============================================================================= */
+
+.empty-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 40px;
+    text-align: center;
+    color: var(--text-muted);
+    box-shadow: var(--shadow);
+}
+
+
+
+
+/* =============================================================================
+   5. Refresh Panel
+      Small panel to the right of the hero card showing the countdown
+      timer until the next automatic page reload.
+      The countdown number is updated every second by JavaScript.
+   ============================================================================= */
+
+.refresh-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-width: 160px;
+    text-align: center;
+}
+
+.refresh-countdown {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--blue);
+    font-family: monospace;
+}
+
+.refresh-label {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+
+
+
+/* =============================================================================
+   6. Range Tabs
+      Toggle tabs displayed inside the graph card header.
+      Clicking a tab reloads the page with range=24h or range=7d.
+      .range-tab--active highlights the currently selected tab.
+   ============================================================================= */
+
+.range-tabs {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.range-tab {
+    padding: 6px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1.5px solid var(--border);
+    color: var(--text-muted);
+    background: var(--surface);
+}
+
+.range-tab--active {
+    background: var(--blue);
+    color: #fff;
+    border-color: var(--blue);
+}
+
+
+
+
+/* =============================================================================
+   7. Graph
+      Container for the Chart.js canvas element.
+      Height is fixed here - increase or decrease to adjust the graph height.
+      width is handled automatically by Chart.js (responsive: true).
+   ============================================================================= */
+
+.chart-container {
+    position: relative;
+    height: 550px;
+}
+
+
+
+
+/* =============================================================================
+   8. Table
+      History table showing the 100 most recent readings across all stations.
+
+      Row colour coding by swimming verdict:
+        .row--cold  - Temperature cell shown in blue
+        .row--brave - Temperature cell shown in amber
+        .row--great - Temperature cell shown in green
+
+      Special cells:
+        .verdict-pill  - Rounded pill badge in the verdict column
+        .station-dot   - Small coloured circle matching the graph line colour
+        .meta-cell     - Muted monospace text for timestamps
+   ============================================================================= */
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+th {
+    text-align: left;
+    padding: 10px 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+}
+
+td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+
+.row--cold td.temp-cell {
+    color: var(--cold);
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.row--brave td.temp-cell {
+    color: var(--brave);
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.row--great td.temp-cell {
+    color: var(--great);
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.verdict-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.row--cold .verdict-pill {
+    background: #eff8ff;
+    color: #1d4ed8;
+}
+
+.row--brave .verdict-pill {
+    background: #fffbeb;
+    color: #b45309;
+}
+
+.row--great .verdict-pill {
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.station-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.meta-cell {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: monospace;
+}
+
+
+
+
+/* =============================================================================
+   9. Responsive
+      Adjustments for narrow screens (mobile, max-width 640px).
+      The top row stacks vertically and the hero card centres its content.
+   ============================================================================= */
+
+@media (max-width: 640px) {
+    .top-row {
+        grid-template-columns: 1fr;
+    }
+
+    .temp-card {
+        flex-direction: column;
+        gap: 16px;
+        text-align: center;
+    }
+
+    .temp-value {
+        font-size: 3rem;
+    }
+}

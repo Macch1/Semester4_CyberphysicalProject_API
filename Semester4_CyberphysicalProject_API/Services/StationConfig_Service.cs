@@ -29,20 +29,48 @@ namespace Semester4_CyberphysicalProject_API.Services
         private const string DMI_API_STRING_PROPERTIES = "properties";
         private const string DMI_API_STRING_PARAMETER_ID = "parameterId";
 
+        // The GeoJSON observation property string identifier for the timestamp.
+        private const string DMI_API_STRING_OBSERVED = "observed";
+
+
+
         // The DMI parameter ID for water temperature.
         private const string DMI_API_STRING_WATER_TEMPERATURE = "tw";
 
         // The DMI station property string identifiers.
         private const string DMI_API_STRING_STATION_ID = "stationId";
-        private const string DMI_API_STRING_STATION_NAME = "stationName";
+        private const string DMI_API_STRING_STATION_NAME = "name";
         private const string DMI_API_STRING_STATION_LONGTITUDE = "longtitude";
         private const string DMI_API_STRING_STATION_LATITUDE = "latitude";
+
 
         // The appsettings.json key strings for the bounding box coordinates.
         private const string DMI_BBOX_MIN_LONGTITUDE = "Dmi:BoundingBox:Minlongtitude";
         private const string DMI_BBOX_MAX_LONGTITUDE = "Dmi:BoundingBox:Maxlongtitude";
         private const string DMI_BBOX_MIN_LATITUDE = "Dmi:BoundingBox:MinLatitude";
         private const string DMI_BBOX_MAX_LATITUDE = "Dmi:BoundingBox:MaxLatitude";
+
+
+
+
+        // DMI Observation API endpoint - used to check station freshness during discovery.
+        private const string DMI_API_OBSERVATION_BASE_URL = "https://dmigw.govcloud.dk/v2/oceanObs/collections/observation/items";
+
+        // The freshness threshold in days.
+        // Stations whose most recent reading is older than this are considered stale and excluded.
+        private const int STATION_FRESHNESS_THRESHOLD_DAYS = 30;
+
+        // Observation endpoint query parameter strings.
+        private const string DMI_API_QUERY_PARAMETER_ID = "parameterId";
+        private const string DMI_API_QUERY_STATION_ID = "stationId";
+        private const string DMI_API_QUERY_SORT_ORDER = "sortorder";
+        private const string DMI_API_QUERY_LIMIT = "limit";
+        private const string DMI_API_QUERY_SORT_ORDER_VALUE = "observed,DESC";
+        private const string DMI_API_QUERY_LIMIT_VALUE = "1";
+
+
+
+
 
 
 
@@ -54,6 +82,7 @@ namespace Semester4_CyberphysicalProject_API.Services
         private const string JSON_FILE_STRING_STATION_NAME = "stationName";
         private const string JSON_FILE_STRING_STATION_LONGTITUDE = "longtitude";
         private const string JSON_FILE_STRING_STATION_LATITUDE = "latitude";
+
 
 
 
@@ -124,7 +153,7 @@ namespace Semester4_CyberphysicalProject_API.Services
 
 
 
-
+        /*
         /// <summary>
         /// Creates a new StationConfig_Service instance using custom file and folder names.
         /// Receives HttpClient and IConfiguration from the DI container.
@@ -147,7 +176,7 @@ namespace Semester4_CyberphysicalProject_API.Services
             // Ensure the data folder exists — create it if it doesn't.
             Directory.CreateDirectory(this._dataFolder);
         }
-
+        */
 
 
 
@@ -408,6 +437,18 @@ namespace Semester4_CyberphysicalProject_API.Services
                         continue;
                     }
 
+                    // Check if the station has reported fresh data recently.
+                    // Stations that have not reported within the freshness threshold are excluded.
+                    bool isFresh = await IsStationFresh_Async(id);
+                    
+                    if (!isFresh)
+                    {
+                        continue;
+                    }
+
+
+
+                    // . 
                     stations.Add(new DMI_Station_DataClass(id, name));
 
                     // Stop once we reach the maximum number of stations.
@@ -590,6 +631,128 @@ namespace Semester4_CyberphysicalProject_API.Services
             return string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0},{1},{2},{3}", minLon, minLat, maxLon, maxLat);
         }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+        ////////////////////////////////////////////////////////////////////////////////////
+        ///                     Private Freshness Check Methods                         ///
+        ////////////////////////////////////////////////////////////////////////////////////
+
+
+        /// <summary>
+        /// Checks whether a station has reported a fresh water temperature reading recently.
+        /// Calls the DMI Observation API for the station and checks the timestamp of its
+        /// most recent reading against the configured freshness threshold.
+        /// Stations whose most recent reading is older than STATION_FRESHNESS_THRESHOLD_DAYS
+        /// are considered stale and should be excluded from the tracked station list.
+        /// </summary>
+        /// <param name="stationId">The unique DMI station identifier to check.</param>
+        /// <returns>
+        /// True if the station has reported a reading within the freshness threshold.
+        /// False if the station is stale, unreachable, or returned no data.
+        /// </returns>
+        private async Task<bool> IsStationFresh_Async(string stationId)
+        {
+            try
+            {
+                // Build the URL to fetch the most recent observation for this station.
+                string url = BuildFreshnessCheckUrl(stationId);
+
+                // Make the HTTP call to the DMI Observation API.
+                HttpResponseMessage response = await this._http.GetAsync(url);
+                response.EnsureSuccessStatusCode();
+
+                // Read the raw JSON response body.
+                string json = await response.Content.ReadAsStringAsync();
+
+                // Deserialise the GeoJSON response into a JsonElement for manual parsing.
+                JsonElement root = JsonSerializer.Deserialize<JsonElement>(json);
+                JsonElement features = root.GetProperty(DMI_API_STRING_FEATURES);
+
+                // If there are no features, the station has never reported data.
+                JsonElement[] featuresArray = features.EnumerateArray().ToArray();
+                if (featuresArray.Length == 0)
+                {
+                    Console.WriteLine($"[INFO] StationConfig_Service.IsStationFresh_Async: Station '{stationId}' has no observations. Excluding.");
+                    return false;
+                }
+
+                // Extract the properties block from the first (most recent) feature.
+                if (!featuresArray[0].TryGetProperty(DMI_API_STRING_PROPERTIES, out JsonElement props))
+                {
+                    Console.WriteLine($"[INFO] StationConfig_Service.IsStationFresh_Async: Station '{stationId}' has no properties block. Excluding.");
+                    return false;
+                }
+
+                // Extract the observed timestamp from the properties block.
+                if (!props.TryGetProperty(DMI_API_STRING_OBSERVED, out JsonElement observedElement))
+                {
+                    Console.WriteLine($"[INFO] StationConfig_Service.IsStationFresh_Async: Station '{stationId}' has no observed timestamp. Excluding.");
+                    return false;
+                }
+
+                DateTime observed = observedElement.GetDateTime();
+
+                // Check if the most recent reading is within the freshness threshold.
+                double daysSinceLastReading = (DateTime.UtcNow - observed.ToUniversalTime()).TotalDays;
+
+                if (daysSinceLastReading > STATION_FRESHNESS_THRESHOLD_DAYS)
+                {
+                    Console.WriteLine($"[INFO] StationConfig_Service.IsStationFresh_Async: Station '{stationId}' last reported {daysSinceLastReading:F1} days ago. Excluding as stale.");
+                    return false;
+                }
+
+                Console.WriteLine($"[INFO] StationConfig_Service.IsStationFresh_Async: Station '{stationId}' last reported {daysSinceLastReading:F1} days ago. Including as fresh.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // If we cannot reach the station, treat it as stale and exclude it.
+                Console.WriteLine($"[WARNING] StationConfig_Service.IsStationFresh_Async: Failed to check freshness for station '{stationId}'. Excluding. {ex.Message}");
+                return false;
+            }
+        }
+
+
+
+
+
+
+        /// <summary>
+        /// Builds the DMI Observation API URL for checking the freshness of a single station.
+        /// Requests only the single most recent water temperature reading for the given station,
+        /// sorted by observation time descending so the newest is always first.
+        /// </summary>
+        /// <param name="stationId">The unique DMI station identifier to check freshness for.</param>
+        /// <returns>The fully constructed URL as a string.</returns>
+        private string BuildFreshnessCheckUrl(string stationId)
+        {
+            // Build the URL with query parameters that tell DMI exactly what to return:
+            //
+            // "parameterId=tw": only water temperature readings
+            //
+            // "stationId={id}": only from this specific station
+            //
+            // "sortorder=observed,DESC": newest reading first
+            //
+            // "limit=1": only return the single most recent reading
+            //
+            return $"{DMI_API_OBSERVATION_BASE_URL}" +
+                   $"?{DMI_API_QUERY_PARAMETER_ID}={DMI_API_STRING_WATER_TEMPERATURE}" +
+                   $"&{DMI_API_QUERY_STATION_ID}={stationId}" +
+                   $"&{DMI_API_QUERY_SORT_ORDER}={DMI_API_QUERY_SORT_ORDER_VALUE}" +
+                   $"&{DMI_API_QUERY_LIMIT}={DMI_API_QUERY_LIMIT_VALUE}";
+        }
 
 
 

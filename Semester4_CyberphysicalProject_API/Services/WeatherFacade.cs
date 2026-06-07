@@ -11,6 +11,10 @@ namespace Semester4_CyberphysicalProject_API.Services
     /// Acts as the single coordination point between the services and the rest of the application.
     /// The Controller only ever sees IWeatherDisplay_Facade.
     /// DmiFetch_BackgroundService only ever sees IWeatherFetch_Facade.
+    /// 
+    /// Registered as a singleton in Program.cs.
+    /// Uses IDbContextFactory to create a fresh Context Class Instance per database operation,
+    /// avoiding the lifetime conflict between a singleton service and the scoped WeatherContext.
     /// </summary>
     public class WeatherFacade : IWeatherDisplay_Facade, IWeatherFetch_Facade
     {
@@ -42,14 +46,20 @@ namespace Semester4_CyberphysicalProject_API.Services
         private readonly IStationConfig_Service _stationConfigService;
 
         /// <summary>
-        /// The Context Class Instance, used for reading and writing to the SQL database.
+        /// The factory used to create fresh Context Class Instances for each database operation.
+        /// Using a factory instead of a direct Context Class Instance allows WeatherFacade to be
+        /// registered as a singleton — the factory creates and disposes a fresh Context Class Instance
+        /// per operation, avoiding the lifetime conflict with the scoped WeatherContext.
         /// </summary>
-        private readonly WeatherContext _context;
+        private readonly IDbContextFactory<WeatherContext> _contextFactory;
 
         /// <summary>
         /// Provides access to the appsettings.json configuration values.
         /// </summary>
         private readonly IConfiguration _config;
+
+
+
 
 
 
@@ -71,15 +81,18 @@ namespace Semester4_CyberphysicalProject_API.Services
         /// </summary>
         /// <param name="dmiOceanService">The DMI Ocean Service, given as a parameter (DI).</param>
         /// <param name="stationConfigService">The Station Config Service, given as a parameter (DI).</param>
-        /// <param name="context">The Context Class Instance for the SQL database, given as a parameter (DI).</param>
+        /// <param name="contextFactory">The factory for creating fresh Context Class Instances, given as a parameter (DI).</param>
         /// <param name="config">Provides access to appsettings.json values, given as a parameter (DI).</param>
-        public WeatherFacade(IDMI_Ocean_Service dmiOceanService, IStationConfig_Service stationConfigService, WeatherContext context, IConfiguration config)
+        public WeatherFacade(IDMI_Ocean_Service dmiOceanService, IStationConfig_Service stationConfigService, IDbContextFactory<WeatherContext> contextFactory, IConfiguration config)
         {
             this._dmiOceanService = dmiOceanService;
             this._stationConfigService = stationConfigService;
-            this._context = context;
+            this._contextFactory = contextFactory;
             this._config = config;
         }
+
+
+
 
 
 
@@ -102,9 +115,13 @@ namespace Semester4_CyberphysicalProject_API.Services
             // Calculate the cutoff time based on the requested number of hours.
             DateTime cutoff = DateTime.UtcNow.AddHours(-hours);
 
+            // Create a fresh Context Class Instance for this database operation.
+            // The "using" block ensures it is disposed cleanly when done.
+            using WeatherContext db = this._contextFactory.CreateDbContext();
+
             // Return all readings from the SQL database within the requested time range,
             // ordered from oldest to newest.
-            return await this._context.Readings
+            return await db.Readings
                 .Where(r => r.ObservedAt >= cutoff)
                 .OrderBy(r => r.ObservedAt)
                 .ToListAsync();
@@ -114,10 +131,24 @@ namespace Semester4_CyberphysicalProject_API.Services
         /// <inheritdoc/>
         public async Task<WaterTemperatureReading?> GetWarmestReadingAsync()
         {
+            // Create a fresh Context Class Instance for this database operation.
+            // The "using" block ensures it is disposed cleanly when done.
+            using WeatherContext db = this._contextFactory.CreateDbContext();
+
             // Return the single reading with the highest water temperature across all stations.
-            return await this._context.Readings
+            return await db.Readings
                 .OrderByDescending(r => r.WaterTemperature)
                 .FirstOrDefaultAsync();
+        }
+
+
+        /// <inheritdoc/>
+        public async Task<DateTime?> GetLatestObservedAtAsync()
+        {
+            // Acts as a display-focused facade for GetLatestObservedAt_Internal_Async.
+            // Used by the Controller to check whether enough time has passed
+            // since the last fetch before triggering a manual refresh.
+            return await this.GetLatestObservedAt_Internal_Async();
         }
 
 
@@ -147,12 +178,6 @@ namespace Semester4_CyberphysicalProject_API.Services
 
 
 
-
-
-
-
-
-
         ///////////////////////////////////////////////////////////////////////////////////
         ///           Public IWeatherDisplay_Facade — Station Methods                  ///
         ///////////////////////////////////////////////////////////////////////////////////
@@ -164,6 +189,13 @@ namespace Semester4_CyberphysicalProject_API.Services
             // Read and return the current station list from the local station list file.
             return this._stationConfigService.ReadStations();
         }
+
+
+
+
+
+
+
 
 
 
@@ -207,6 +239,19 @@ namespace Semester4_CyberphysicalProject_API.Services
         }
 
 
+        /// <inheritdoc/>
+        public async Task<DateTime?> GetLastFetchTimestampAsync()
+        {
+            // Acts as a fetch-focused facade for GetLatestObservedAt_Internal_Async.
+            // Used by DmiFetch_BackgroundService to check whether enough time has passed
+            // since the last fetch before triggering a new fetch cycle.
+            return await this.GetLatestObservedAt_Internal_Async();
+        }
+
+
+
+
+
 
 
 
@@ -241,10 +286,14 @@ namespace Semester4_CyberphysicalProject_API.Services
         /// <inheritdoc/>
         public async Task ResetAndRediscoverAsync()
         {
+            // Create a fresh Context Class Instance for this database operation.
+            // The "using" block ensures it is disposed cleanly when done.
+            using WeatherContext db = this._contextFactory.CreateDbContext();
+
             // Load and delete all readings from the SQL database.
-            List<WaterTemperatureReading> allReadings = await this._context.Readings.ToListAsync();
-            this._context.Readings.RemoveRange(allReadings);
-            await this._context.SaveChangesAsync();
+            List<WaterTemperatureReading> allReadings = await db.Readings.ToListAsync();
+            db.Readings.RemoveRange(allReadings);
+            await db.SaveChangesAsync();
             Console.WriteLine("[INFO] WeatherFacade.ResetAndRediscoverAsync: All readings deleted from the SQL database.");
 
             // Delete the local station list file, forcing a fresh discovery.
@@ -255,6 +304,11 @@ namespace Semester4_CyberphysicalProject_API.Services
             await this._stationConfigService.DiscoverAndSaveStationsAsync();
             Console.WriteLine("[INFO] WeatherFacade.ResetAndRediscoverAsync: Reset complete. All data wiped and stations rediscovered.");
         }
+
+
+
+
+
 
 
 
@@ -279,6 +333,10 @@ namespace Semester4_CyberphysicalProject_API.Services
         /// <param name="response">The full DMI response containing observations from all stations.</param>
         private async Task SaveReadingsAsync(DMI_StationsResponse_DataClass response)
         {
+            // Create a fresh Context Class Instance for this database operation.
+            // The "using" block ensures it is disposed cleanly when done.
+            using WeatherContext db = this._contextFactory.CreateDbContext();
+
             // Get all station observations from the response.
             List<DMI_StationObservations_DataClass> allStationObservations = response.Get_AllObservations_fromAllStations();
 
@@ -291,7 +349,7 @@ namespace Semester4_CyberphysicalProject_API.Services
                 {
                     // Check for a duplicate reading — same StationId and ObservedAt timestamp.
                     // This happens when the fetch cycle runs more frequently than DMI updates its data.
-                    bool isDuplicate = await this._context.Readings.AnyAsync(r => r.StationId == observation.Get_StationId() && r.ObservedAt == observation.Get_TimeStamp().ToUniversalTime());
+                    bool isDuplicate = await db.Readings.AnyAsync(r => r.StationId == observation.Get_StationId() && r.ObservedAt == observation.Get_TimeStamp().ToUniversalTime());
 
                     if (isDuplicate)
                     {
@@ -301,14 +359,14 @@ namespace Semester4_CyberphysicalProject_API.Services
 
                     // Convert the observation to a WaterTemperatureReading and add it to the database.
                     WaterTemperatureReading reading = ConvertToReading(observation);
-                    this._context.Readings.Add(reading);
+                    db.Readings.Add(reading);
                     Console.WriteLine($"[INFO] WeatherFacade.SaveReadingsAsync: New reading saved for station '{observation.Get_StationId()}' at '{observation.Get_TimeStamp()}'.");
                 }
             }
 
             // Save all new readings to the SQL database in a single operation.
             // Calling SaveChangesAsync once outside the loop is more efficient than calling it per reading.
-            await this._context.SaveChangesAsync();
+            await db.SaveChangesAsync();
         }
 
 
@@ -321,13 +379,17 @@ namespace Semester4_CyberphysicalProject_API.Services
         /// </summary>
         private async Task TrimReadingsAsync()
         {
+            // Create a fresh Context Class Instance for this database operation.
+            // The "using" block ensures it is disposed cleanly when done.
+            using WeatherContext db = this._contextFactory.CreateDbContext();
+
             // Read the maximum number of readings per station from appsettings.json.
             // Defaults to 672 (one week of 15-minute readings) if not configured.
             int maxReadingsPerStation = this._config.GetValue<int>(CONFIG_MAX_READINGS_PER_STATION, DEFAULT_MAX_READINGS_PER_STATION);
 
             // Find the station with the most readings to determine if trimming is needed.
             // Uses a nullable int to safely handle an empty database without throwing an exception.
-            int? maxReadingCount = await this._context.Readings
+            int? maxReadingCount = await db.Readings
                 .GroupBy(r => r.StationId)
                 .Select(g => (int?)g.Count())
                 .MaxAsync();
@@ -343,7 +405,7 @@ namespace Semester4_CyberphysicalProject_API.Services
 
             // Find the cutoff reading — the trimCount-th oldest reading in the database.
             // We use this reading's ObservedAt timestamp as our cutoff point.
-            WaterTemperatureReading? cutoffReading = await this._context.Readings
+            WaterTemperatureReading? cutoffReading = await db.Readings
                 .OrderBy(r => r.ObservedAt)
                 .Skip(trimCount - 1)
                 .FirstOrDefaultAsync();
@@ -358,18 +420,47 @@ namespace Semester4_CyberphysicalProject_API.Services
             // Get ALL readings at or before the cutoff timestamp across ALL stations.
             // Trimming across all stations at once ensures we never end up with
             // incomplete data from a specific point in time.
-            List<WaterTemperatureReading> readingsToTrim = await this._context.Readings
+            List<WaterTemperatureReading> readingsToTrim = await db.Readings
                 .Where(r => r.ObservedAt <= cutoffTimestamp)
                 .ToListAsync();
 
             // Remove all readings at or before the cutoff timestamp.
-            this._context.Readings.RemoveRange(readingsToTrim);
+            db.Readings.RemoveRange(readingsToTrim);
 
             // Save all changes to the SQL database in a single operation.
-            await this._context.SaveChangesAsync();
+            await db.SaveChangesAsync();
 
             Console.WriteLine($"[INFO] WeatherFacade.TrimReadingsAsync: Trimmed {readingsToTrim.Count} readings at or before '{cutoffTimestamp}'.");
         }
+
+
+        /// <summary>
+        /// Internal method that returns the most recent ObservedAt timestamp
+        /// across all readings in the database.
+        /// Called by both GetLatestObservedAtAsync() and GetLastFetchTimestampAsync(),
+        /// which act as display-focused and fetch-focused facades for this method respectively.
+        /// Returns null if no readings exist in the database yet.
+        /// </summary>
+        /// <returns>
+        /// The most recent ObservedAt timestamp as a nullable DateTime,
+        /// or null if no readings exist.
+        /// </returns>
+        private async Task<DateTime?> GetLatestObservedAt_Internal_Async()
+        {
+            // Create a fresh Context Class Instance for this database operation.
+            // The "using" block ensures it is disposed cleanly when done.
+            using WeatherContext db = this._contextFactory.CreateDbContext();
+
+            // Return the most recent ObservedAt timestamp from the database,
+            // or null if no readings exist yet.
+            return await db.Readings
+                .OrderByDescending(r => r.ObservedAt)
+                .Select(r => (DateTime?)r.ObservedAt)
+                .FirstOrDefaultAsync();
+        }
+
+
+
 
 
 
@@ -402,5 +493,10 @@ namespace Semester4_CyberphysicalProject_API.Services
                 ObservedAt = observation.Get_TimeStamp().ToUniversalTime()
             };
         }
+
+
+
+
+
     }
 }
