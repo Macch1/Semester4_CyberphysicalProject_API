@@ -538,8 +538,8 @@
                     data:            points.map(p => ({ x: new Date(p.time), y: p.temp })),
                     borderColor:     colour,
                     backgroundColor: colour + '22',  // 22 = 13% opacity hex suffix
-                    borderWidth:     2,
-                    pointRadius:     points.length > 200 ? 0 : 4,  // Hide dots for dense data
+                    borderWidth:     1,
+                    pointRadius:     points.length > 20 ? 0 : 4,  // Hide dots for dense data
                     tension:         0.3,  // Slight curve on the lines
                     fill:            false
                 });
@@ -577,8 +577,8 @@
                         // Y axis - fixed temperature range in degrees Celsius
                         y:
                         {
-                            min:   -4,
-                            max:   30,
+                            min:   2,
+                            max:   28,
                             ticks: { stepSize: 1, callback: v => v + 'C' },  // One tick per degree
                             grid:  { color: '#dde1e9' }
                         }
