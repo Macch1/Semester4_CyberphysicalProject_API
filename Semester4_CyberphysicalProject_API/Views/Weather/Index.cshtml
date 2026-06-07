@@ -5,22 +5,24 @@
 
 
 <!-- ============================================================================
-     File Structure Guide
+     _Layout.cshtml - Shared page layout used by all views
+     Used by: All views (configured in _ViewStart.cshtml)
 
+     File Structure Guide
      1. Code Block       - C# variables, ViewBag casting, chart data prep
-     2. Section Styles   - Links weather.css page-specific stylesheet
+     2. section Styles   - Links weather.css page-specific stylesheet
      3. Page Title Row   - Page title and last updated timestamp
      4. Top Row          - Hero card (warmest station) + countdown panel
         4a. Hero Card    - Warmest station temp, verdict, station pills
         4b. Refresh Panel- Auto-refresh countdown timer
      5. Graph Card       - Range tabs (24h / 7d) + Chart.js graph
      6. History Table    - 100 most recent readings across all stations
-     7. Section Scripts  - Countdown timer logic + Chart.js initialisation
+     7. section Scripts  - Countdown timer + polling logic + Chart.js
+
+     ViewData keys used by this layout:
+       ViewData["Title"]      - Sets the browser tab title
+       ViewData["ActivePage"] - Highlights the correct navigation link
      ============================================================================ -->
-
-
-
-
 @{
     ViewData["Title"] = "Sea Water Temperature";
     ViewData["ActivePage"] = "Weather";
@@ -39,7 +41,7 @@
     int fetchIntervalSeconds = fetchIntervalMinutes * 60;
 
     // Colour palette for stations - one colour per station line on the graph.
-    // The order here must match the order stations appear in readingsByStation.
+    // The order here must match the order stations appear in readingsByStation below.
     string[] palette = new[] { "#003d8f", "#e05c00", "#1a8a4a", "#8b2fc9", "#b5000f" };
 
     // Resolve the CSS class and text label for the hero card swimming verdict.
@@ -70,8 +72,8 @@
     // Each station maps to a list of { time, temp } objects.
     // DateTime.SpecifyKind ensures the Z (UTC) suffix is included,
     // which new Date() in JavaScript requires to parse correctly.
-    // Without the Z suffix, Danish locale machines produce dots instead of colons,
-    // causing Invalid Date errors in the browser.
+    // Without it, Danish locale machines produce dots instead of colons
+    // in the timestamp, causing Invalid Date errors in the browser.
     var chartData = readingsByStation.ToDictionary(
         kvp => kvp.Key,
         kvp => kvp.Value.Select(r => new
@@ -85,6 +87,12 @@
     // Build a list of station names in the same order as readingsByStation.
     // Used in the history table to match each reading to its palette colour.
     List<string> stationNames = readingsByStation.Keys.ToList();
+
+    // Format the latestObservedAt timestamp for injection into JavaScript.
+    // Uses UTC with Z suffix so new Date() parses it correctly in all browsers.
+    string latestObservedAtJs = latestObservedAt.HasValue
+        ? DateTime.SpecifyKind(latestObservedAt.Value, DateTimeKind.Utc).ToString("o")
+        : "";
 }
 
 
@@ -204,7 +212,8 @@
          4b. Refresh Panel
              Shows a countdown timer until the next automatic page reload.
              The countdown is driven by JavaScript in section Scripts below.
-             When it reaches zero, the page reloads automatically.
+             When the countdown hits zero, the page switches to polling the
+             LatestTimestamp endpoint and reloads only when new data has arrived.
          ======================================================================== -->
     <div class="refresh-panel">
         <!-- Countdown display - updated every second by the JavaScript timer -->
@@ -327,68 +336,157 @@
 
 
 
+<!-- ============================================================================
+     7. Page-specific scripts
+        Contains two independent IIFEs (self-executing functions):
+          7a. Auto-refresh countdown + polling
+          7b. Chart.js graph initialisation
+        IIFEs keep all variables scoped locally, avoiding global namespace issues.
+     ============================================================================ -->
 @section Scripts {
     <script>
 
+
                 // ====================================================================
-                // 7a. Auto-refresh countdown timer
-                //     Counts down based on time already elapsed since the last
-                //     observation - so the timer always reflects the true remaining
-                //     wait time rather than resetting to the full interval on every
-                //     page load.
-                // ====================================================================
-                (function ()
+        // 7a. Auto-refresh countdown and polling
+        //
+        //     Phase 1 - Countdown:
+        //       Counts down based on time already elapsed since the last
+        //       observation. Starts at the REMAINING time, not the full
+        //       interval - so a page reload mid-cycle shows the correct
+        //       remaining wait time rather than resetting to the full interval.
+        //
+        //     Phase 2 - Polling (starts when countdown hits zero):
+        //       Polls the LatestTimestamp endpoint every 3 seconds.
+        //       Only reloads the page when the server returns a timestamp
+        //       NEWER than the one we had when the page loaded.
+        //       This ensures we never reload before new data has arrived.
+        //       Falls back to a forced reload after 10 minutes in case the
+        //       background service fails or DMI is unreachable.
+        // ====================================================================
+        (function ()
+        {
+            // Total seconds in the fetch interval - injected from C# via Razor
+            const intervalSeconds = @fetchIntervalSeconds;
+
+            // The timestamp of the last observation when this page loaded.
+            // Used both for the countdown calculation and as a baseline to
+            // detect when new data has arrived during polling.
+            const observedAtOnLoad = new Date("@latestObservedAtJs");
+
+            // True if no data existed when the page loaded (first run).
+            // In this case any comparison against observedAtOnLoad is meaningless
+            // since Invalid Date comparisons always return false in JavaScript.
+            const hadNoDataOnLoad = !observedAtOnLoad || isNaN(observedAtOnLoad.getTime());
+
+            // Calculate how many seconds have already passed since the last observation.
+            // Falls back to the full interval if no observation exists yet (first run),
+            // so polling starts immediately when the countdown hits zero.
+            const secondsSinceLast = hadNoDataOnLoad
+                ? intervalSeconds
+                : Math.floor((new Date() - observedAtOnLoad) / 1000);
+
+            // Start the countdown at the remaining time - clamped between 0 and the full interval.
+            // If more than a full interval has passed, starts at 0 so polling begins immediately.
+            let remaining = Math.max(0, Math.min(intervalSeconds, intervalSeconds - secondsSinceLast));
+
+            // Formats a number of seconds as MM:SS for the countdown display
+            function formatTime(seconds)
+            {
+                const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const s = (seconds % 60).toString().padStart(2, '0');
+                return m + ':' + s;
+            }
+
+            // References to the countdown display and its label below it
+            const el =    document.getElementById('countdown');
+            const label = el.nextElementSibling;
+
+            // Set the initial countdown display before the first tick
+            el.textContent = formatTime(remaining);
+
+            // Polls the LatestTimestamp endpoint every 3 seconds.
+            // Reloads the page when:
+            //   - The server returns a timestamp newer than what we had on load, OR
+            //   - The page had no data on load and any data has now arrived
+            // Falls back to a forced reload after 10 minutes if new data never arrives.
+            function startPollingForNewData()
+            {
+                // Show a waiting indicator while polling
+                el.textContent = '...';
+
+                // Update the label to explain what is happening
+                label.textContent = hadNoDataOnLoad
+                    ? 'waiting for first data'
+                    : 'waiting for new data';
+
+                // Record when polling started for the timeout fallback
+                const pollStartTime = Date.now();
+
+                // Maximum time to poll before forcing a reload (10 minutes)
+                const POLL_TIMEOUT_MS = 10 * 60 * 1000;
+
+                const pollInterval = setInterval(async function ()
                 {
-                    // Total seconds in the fetch interval - injected from C# via Razor
-                    const intervalSeconds = @fetchIntervalSeconds;
-
-                    // The timestamp of the last observation - injected from C# via Razor
-                    // DateTime.SpecifyKind ensures the Z suffix is included so JavaScript
-                    // parses it correctly as UTC rather than local time.
-                    const lastObservedAt = new Date("@(latestObservedAt.HasValue? DateTime.SpecifyKind(latestObservedAt.Value, DateTimeKind.Utc).ToString("o") : "")");
-
-                    // Calculate how many seconds have already passed since the last observation.
-                    // Falls back to 0 if no observation exists yet (first run).
-                    const secondsSinceLast = !isNaN(lastObservedAt)
-                        ? Math.floor((new Date() - lastObservedAt) / 1000)
-                        : 0;
-
-                    // Start the countdown at the remaining time - clamped between 0 and the full interval.
-                    // If more than a full interval has passed, start at 0 so a fetch triggers immediately.
-                    let remaining = Math.max(0, Math.min(intervalSeconds, intervalSeconds - secondsSinceLast));
-
-                    // Formats a number of seconds as MM:SS for the countdown display
-                    function formatTime(seconds)
+                    // Timeout fallback - if new data never arrives after 10 minutes,
+                    // force a reload anyway so the page does not get stuck indefinitely.
+                    // This handles the case where the background service fails or
+                    // DMI is unreachable for an extended period.
+                    if (Date.now() - pollStartTime > POLL_TIMEOUT_MS)
                     {
-                        const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-                        const s = (seconds % 60).toString().padStart(2, '0');
-                        return m + ':' + s;
+                        clearInterval(pollInterval);
+                        window.location.href = '/Weather?range=@range';
+                        return;
                     }
 
-                    // Set the initial countdown display before the first tick
-                    const el = document.getElementById('countdown');
-                    el.textContent = formatTime(remaining);
-
-                    // Tick every 1000ms - decrement and update the display
-                    const timer = setInterval(function ()
+                    try
                     {
-                        remaining--;
+                        // Ask the controller for the latest ObservedAt timestamp
+                        const response = await fetch('/Weather/LatestTimestamp');
+                        const latest =   await response.json();
 
-                        if (remaining <= 0)
+                        if (latest)
                         {
-                            // Countdown reached zero - stop the timer and reload the page
-                            clearInterval(timer);
+                            // Reload if the page had no data and any data has now arrived,
+                            // OR if the returned timestamp is strictly newer than what we had.
+                            const newDataArrived = hadNoDataOnLoad || new Date(latest) > observedAtOnLoad;
 
-                            // Reload preserving the current range tab (24h or 7d)
-                            window.location.href = '/Weather?range=@range';
-                        }
-                        else
-                        {
-                            el.textContent = formatTime(remaining);
-                        }
+                            if (newDataArrived)
+                            {
+                                clearInterval(pollInterval);
 
-                    }, 1000);
-                })();
+                                // Reload preserving the current range tab (24h or 7d)
+                                window.location.href = '/Weather?range=@range';
+                            }
+                        }
+                    }
+                    catch (error)
+                    {
+                        // If the poll fails, keep trying on the next tick
+                        console.error('Poll failed:', error);
+                    }
+
+                }, 3000);
+            }
+
+            // Tick every 1000ms - decrement and update the display
+            const timer = setInterval(function ()
+            {
+                remaining--;
+
+                if (remaining <= 0)
+                {
+                    // Countdown reached zero - stop the timer and start polling
+                    clearInterval(timer);
+                    startPollingForNewData();
+                }
+                else
+                {
+                    el.textContent = formatTime(remaining);
+                }
+
+            }, 1000);
+        })();
 
 
 
