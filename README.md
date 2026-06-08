@@ -201,3 +201,18 @@ Water temperature is measured inside harbours at a depth of a few metres. Readin
 
 Built for educational purposes as part of Semester 4 — Cyberphysical Systems.
 
+
+
+---
+
+## Author
+
+Developed as a university exam project for **Komponentbaserede Systemer** at SDU, Spring 2026.
+
+
+---
+
+## Disclaimer
+
+AI have been used in the project for the following tasks: *Updating Comments*, *Updating JavaDocs*, *Debugging*, *Update ReadMe*, and as a *RubberDuck*.
+
